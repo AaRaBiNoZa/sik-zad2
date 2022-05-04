@@ -1,10 +1,11 @@
 #include <iostream>
 #include <string>
 
+#include "ClientConfig.h"
+#include "UdpServer.h"
 #include "boost/program_options.hpp"
 
 namespace po = boost::program_options;
-
 
 bool parse_command_line(int argc, char *argv[]) {
   try {
@@ -12,7 +13,7 @@ bool parse_command_line(int argc, char *argv[]) {
     desc.add_options()(
         "display-address,d", po::value<std::string>()->required(),
         "<(nazwa hosta):(port) lub (IPv4):(port) lub (IPv6):(port)>")(
-        "help,h", "produce help message")("player-name, n",
+        "help,h", "produce help message")("player-name,n",
                                           po::value<std::string>()->required())(
         "port,p", po::value<uint16_t>()->required())(
         "server-address,s", po::value<std::string>()->required(),
@@ -42,6 +43,14 @@ int main(int argc, char *argv[]) {
   bool parse_results = parse_command_line(argc, argv);
   if (!parse_results) {
     return 1;
+  }
+
+  try {
+    boost::asio::io_context io_context;
+    UdpServer serv(io_context, 2022, "127.0.0.1:2023");
+    io_context.run();
+  } catch (std::exception &e) {
+    std::cerr << e.what() << std::endl;
   }
 
   return 0;
