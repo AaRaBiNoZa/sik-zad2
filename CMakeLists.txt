@@ -12,6 +12,6 @@ find_package(Boost 1.79.0 COMPONENTS program_options)
 
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
-    add_executable(sik-zad3 main.cpp ClientConfig.h common.h UdpServer.h TcpClientConnection.h)
+    add_executable(sik-zad3 main.cpp ClientConfig.h common.h UdpServer.h TcpClientConnection.h Messages.h)
     target_link_libraries(sik-zad3 ${Boost_LIBRARIES})
 endif()

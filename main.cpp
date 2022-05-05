@@ -4,6 +4,8 @@
 #include "ClientConfig.h"
 #include "UdpServer.h"
 #include "boost/program_options.hpp"
+#include "TcpClientConnection.h"
+#include "Messages.h"
 
 namespace po = boost::program_options;
 
@@ -44,14 +46,22 @@ int main(int argc, char *argv[]) {
   if (!parse_results) {
     return 1;
   }
+//
+//  try {
+//    boost::asio::io_context io_context;
+//    UdpServer serv(io_context, 2022, "127.0.0.1:2024");
+//    TcpClientConnection serv2(io_context, 2022, "127.0.0.1:2023");
+//    io_context.run();
+//  } catch (std::exception &e) {
+//    std::cerr << e.what() << std::endl;
+//  }
 
-  try {
-    boost::asio::io_context io_context;
-    UdpServer serv(io_context, 2022, "127.0.0.1:2023");
-    io_context.run();
-  } catch (std::exception &e) {
-    std::cerr << e.what() << std::endl;
-  }
+  Message::message_map().insert({'0', InputMessage::create});
+  InputMessage::input_message_map().insert({'0', PlaceBomb::create});
+  std::stringstream x;
+  x << "0000";
+  Message pbomb = *Message::unserialize(x);
+  pbomb.say_hello();
 
   return 0;
 }
