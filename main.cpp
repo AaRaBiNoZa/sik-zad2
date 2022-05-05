@@ -6,6 +6,7 @@
 #include "boost/program_options.hpp"
 #include "TcpClientConnection.h"
 #include "Messages.h"
+#include "ByteStream.h"
 
 namespace po = boost::program_options;
 
@@ -56,12 +57,22 @@ int main(int argc, char *argv[]) {
 //    std::cerr << e.what() << std::endl;
 //  }
 
-  Message::message_map().insert({'0', InputMessage::create});
-  InputMessage::input_message_map().insert({'0', PlaceBomb::create});
-  std::stringstream x;
-  x << "0000";
-  Message pbomb = *Message::unserialize(x);
-  pbomb.say_hello();
-
+//  Message::message_map().insert({'0', InputMessage::create});
+//  InputMessage::input_message_map().insert({'0', PlaceBomb::create});
+  ByteStream k;
+  std::string sname("SERW");
+  uint8_t players_count{1};
+  uint16_t size_x{1};
+  uint16_t size_y{1};
+  uint16_t game_length{1};
+  uint16_t explosion_radius{1};
+  uint16_t bomb_timer{1};
+  k << sname << players_count << size_x << size_y << game_length << explosion_radius << bomb_timer;
+  k.resetPtr();
+  Lobby lobby(k);
+//  k<< sname;
+//  k >> sname;
+//  std::cout << sname;
+  std::cout << lobby;
   return 0;
 }
