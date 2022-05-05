@@ -1,0 +1,73 @@
+//
+// Created by Adam Al-Hosam on 05/05/2022.
+//
+
+#ifndef SIK_ZAD3_BYTESTREAM_H
+#define SIK_ZAD3_BYTESTREAM_H
+
+#include <memory>
+#include <ostream>
+
+
+class ByteStream {
+ private:
+  std::vector<uint8_t> data;
+  uint8_t ptr_to_act_el;
+
+ public:
+  ByteStream() : data(256), ptr_to_act_el(0) {};
+  void resetPtr() {
+    ptr_to_act_el = 0;
+  }
+  ByteStream& operator<<(uint8_t& x) {
+    data[ptr_to_act_el] = x;
+    ptr_to_act_el += sizeof(x);
+    return *this;
+  }
+  ByteStream& operator>>(uint8_t& x) {
+    x = data[ptr_to_act_el];
+    ptr_to_act_el += sizeof(x);
+    return *this;
+  }
+
+  ByteStream& operator<<(uint16_t& x) {
+    x = htons(x);
+    std::memcpy(&data[ptr_to_act_el], &x, sizeof(x));
+    ptr_to_act_el += sizeof(x);
+    return *this;
+  }
+  ByteStream& operator>>(uint16_t& x) {
+    std::memcpy( &x,&data[ptr_to_act_el], sizeof(x));
+    x = ntohs(x);
+    ptr_to_act_el += sizeof(x);
+    return *this;
+  }
+
+  ByteStream& operator>>(char& x) {
+    x = data[ptr_to_act_el];
+    ptr_to_act_el += sizeof(x);
+    return *this;
+  }
+  ByteStream& operator<<(char& x) {
+    data[ptr_to_act_el] = x;
+    ptr_to_act_el += sizeof(x);
+    return *this;
+  }
+  ByteStream& operator>>(std::string& s) {
+    uint8_t length;
+    *this >> length;
+    s.resize(length);
+    std::memcpy(s.data(), &data[ptr_to_act_el], s.size());
+    ptr_to_act_el += s.length();
+    return *this;
+  }
+  ByteStream& operator<<(std::string& s) {
+    uint8_t length = s.size();
+    *this << length;
+    std::memcpy(&data[ptr_to_act_el], s.data(), length);
+    ptr_to_act_el += s.length();
+    return *this;
+  }
+};
+
+#endif  // SIK_ZAD3_BYTESTREAM_H
