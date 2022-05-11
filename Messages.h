@@ -7,7 +7,7 @@
 
 #include <map>
 #include <memory>
-#include <ostream>
+#include <iostream>
 #include <utility>
 
 #include "ByteStream.h"

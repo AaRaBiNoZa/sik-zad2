@@ -72,8 +72,9 @@ int main(int argc, char *argv[]) {
 
   try {
     boost::asio::io_context io_context;
-    UdpServer serv(io_context, opts.port, opts.display_address);
+//    UdpServer serv(io_context, opts.port, opts.display_address);
 //    TcpClientConnection serv2(io_context, 2022, "127.0.0.1:2023");
+    Client client(io_context, opts);
     io_context.run();
   } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
