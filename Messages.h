@@ -122,18 +122,18 @@ class Message {
   using Score = uint32_t;
 
   typedef std::shared_ptr<Message> (*MessageFactory)(ByteStream&);
-  static std::map<char, MessageFactory>& message_map() {
-    static auto* ans = new std::map<char, MessageFactory>();
+  static std::map<uint8_t , MessageFactory>& message_map() {
+    static auto* ans = new std::map<uint8_t , MessageFactory>();
     return *ans;
   }
-  static void register_to_map(char key, MessageFactory val) {
+  static void register_to_map(uint8_t key, MessageFactory val) {
     message_map().insert({key, val});
   }
   virtual void say_hello() {
     std::cout << "Hello i am Message";
   };
   static std::shared_ptr<Message> unserialize(ByteStream& istr) {
-    char c;
+    uint8_t c;
     istr >> c;
     return message_map()[c](istr);
   }
@@ -152,30 +152,29 @@ class Message {
 
 class InputMessage : public Message {
  public:
-  typedef std::shared_ptr<InputMessage> (*InputMessageFactory)(ByteStream&);
-  static std::map<char, InputMessageFactory>& input_message_map() {
-    static auto* ans = new std::map<char, InputMessageFactory>();
+  static std::map<uint8_t , MessageFactory>& input_message_map() {
+    static auto* ans = new std::map<uint8_t , MessageFactory>();
     return *ans;
   };
-  static void register_to_map(char key, InputMessageFactory val) {
+  static void register_to_map(uint8_t key, MessageFactory val) {
     input_message_map().insert({key, val});
   }
 
   static std::shared_ptr<Message> create(ByteStream& rest) {
-    return std::dynamic_pointer_cast<Message>(unserialize(rest));
+    return unserialize(rest);
   }
 
-  static std::shared_ptr<InputMessage> unserialize(ByteStream& istr) {
-    char c;
+  static std::shared_ptr<Message> unserialize(ByteStream& istr) {
+    uint8_t c;
     istr >> c;
     return input_message_map()[c](istr);
   }
 };
 
-class PlaceBomb : public InputMessage {
+class PlaceBomb : public Message {
  public:
-  static std::shared_ptr<InputMessage> create(ByteStream& rest) {
-    return std::dynamic_pointer_cast<InputMessage>(
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(
         std::make_shared<PlaceBomb>(rest));
   }
   explicit PlaceBomb(ByteStream& rest){};
@@ -184,10 +183,10 @@ class PlaceBomb : public InputMessage {
   }
 };
 
-class PlaceBlock : public InputMessage {
+class PlaceBlock : public Message {
  public:
-  static std::shared_ptr<InputMessage> create(ByteStream& rest) {
-    return std::dynamic_pointer_cast<InputMessage>(
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(
         std::make_shared<PlaceBlock>(rest));
   }
   explicit PlaceBlock(ByteStream& rest){};
@@ -196,46 +195,45 @@ class PlaceBlock : public InputMessage {
   }
 };
 
-class Move : public InputMessage {
+class Move : public Message {
  private:
   uint8_t direction;
 
  public:
-  static std::shared_ptr<InputMessage> create(ByteStream& rest) {
-    return std::dynamic_pointer_cast<InputMessage>(
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(
         std::make_shared<Move>(rest));
   }
   explicit Move(ByteStream& rest) : direction(0) {
     rest >> direction;
   };
   void say_hello() override {
-    std::cout << "I am placeblock";
+    std::cout << "I am Move in dir: " << direction << '\n';
   }
 };
 
 class DrawMessage : public Message {
  public:
-  typedef std::shared_ptr<DrawMessage> (*DrawMessageFactory)(ByteStream&);
-  static std::map<char, DrawMessageFactory>& draw_message_map() {
-    static auto* ans = new std::map<char, DrawMessageFactory>();
+  static std::map<uint8_t, MessageFactory>& draw_message_map() {
+    static auto* ans = new std::map<uint8_t, MessageFactory>();
     return *ans;
   };
-  static void register_to_map(char key, DrawMessageFactory val) {
+  static void register_to_map(uint8_t key, MessageFactory val) {
     draw_message_map().insert({key, val});
   }
 
   static std::shared_ptr<Message> create(ByteStream& rest) {
-    return std::dynamic_pointer_cast<Message>(unserialize(rest));
+    return unserialize(rest);
   }
 
-  static std::shared_ptr<DrawMessage> unserialize(ByteStream& istr) {
-    char c;
+  static std::shared_ptr<Message> unserialize(ByteStream& istr) {
+    uint8_t c;
     istr >> c;
     return draw_message_map()[c](istr);
   }
 };
 
-class Lobby : public DrawMessage {
+class Lobby : public Message {
  private:
   std::string server_name;
   uint8_t players_count{};
@@ -247,8 +245,8 @@ class Lobby : public DrawMessage {
   std::map<Message::PlayerId, Player> players;
 
  public:
-  static std::shared_ptr<DrawMessage> create(ByteStream& rest) {
-    return std::dynamic_pointer_cast<DrawMessage>(
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(
         std::make_shared<Lobby>(rest));
   }
   explicit Lobby(ByteStream& stream) {
@@ -267,7 +265,7 @@ class Lobby : public DrawMessage {
 
 };
 
-class Game : public DrawMessage {
+class Game : public Message {
  private:
   std::string server_name;
   uint16_t size_x{};
@@ -282,8 +280,8 @@ class Game : public DrawMessage {
   std::map<PlayerId, Score> scores;
 
  public:
-  static std::shared_ptr<DrawMessage> create(ByteStream& rest) {
-    return std::dynamic_pointer_cast<DrawMessage>(std::make_shared<Game>(rest));
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(std::make_shared<Game>(rest));
   }
   explicit Game(ByteStream& stream) {
     stream >> server_name >> size_x >> size_y >> game_length >> turn >>
@@ -302,39 +300,258 @@ class Game : public DrawMessage {
 
 class ClientMessage : public Message {
  public:
-  typedef std::shared_ptr<ClientMessage> (*ClientMessageFactory)(ByteStream&);
-  static std::map<char, ClientMessageFactory>& client_message_map() {
-    static auto* ans = new std::map<char, ClientMessageFactory>();
+  static std::map<uint8_t, MessageFactory>& client_message_map() {
+    static auto* ans = new std::map<uint8_t, MessageFactory>();
     return *ans;
   };
-  static void register_to_map(char key, ClientMessageFactory val) {
+  static void register_to_map(uint8_t key, MessageFactory val) {
     client_message_map().insert({key, val});
   }
 
   static std::shared_ptr<Message> create(ByteStream& rest) {
-    return std::dynamic_pointer_cast<Message>(unserialize(rest));
+    return unserialize(rest);
   }
 
-  static std::shared_ptr<ClientMessage> unserialize(ByteStream& istr) {
-    char c;
+  static std::shared_ptr<Message> unserialize(ByteStream& istr) {
+    uint8_t c;
     istr >> c;
     return client_message_map()[c](istr);
   }
 };
 
-class Join : public ClientMessage {
+class Join : public Message {
  private:
   std::string name;
 
  public:
-  static std::shared_ptr<ClientMessage> create(ByteStream& rest) {
-    return std::dynamic_pointer_cast<ClientMessage>(std::make_shared<Join>(rest));
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(std::make_shared<Join>(rest));
   }
   explicit Join(ByteStream& stream) {
     stream >> name;
   };
   void say_hello() override {
     std::cout << "I Am Join" << " name: " << name;
+  }
+};
+
+class ServerMessage : public Message {
+ public:
+  static std::map<uint8_t, MessageFactory>& server_message_map() {
+    static auto* ans = new std::map<uint8_t, MessageFactory>();
+    return *ans;
+  };
+  static void register_to_map(uint8_t key, MessageFactory val) {
+    server_message_map().insert({key, val});
+  }
+  
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return unserialize(rest);
+  }
+
+  static std::shared_ptr<Message> unserialize(ByteStream& istr) {
+    uint8_t c;
+    istr >> c;
+    return server_message_map()[c](istr);
+  }
+};
+
+class Hello : public Message {
+ private:
+  std::string server_name;
+  uint8_t players_count{};
+  uint16_t size_x{};
+  uint16_t size_y{};
+  uint16_t game_length{};
+  uint16_t explosion_radius{};
+  uint16_t bomb_timer{};
+  
+ public:
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(std::make_shared<Hello>(rest));
+  }
+  explicit Hello(ByteStream& stream) {
+    stream >> server_name >> players_count >> size_x >> size_y >> game_length >> explosion_radius >> bomb_timer;
+  };
+
+  void say_hello() override {
+    std::cout
+              << " server_name: " << server_name
+              << " players_count: " << players_count
+              << " size_x: " << size_x << " size_y: " << size_y
+              << " game_length: " << game_length
+              << " explosion_radius: " << explosion_radius
+              << " bomb_timer: " << bomb_timer;
+  }
+};
+
+class AcceptedPlayer : public Message {
+ private:
+  PlayerId id{};
+  Player player;
+
+ public:
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(std::make_shared<AcceptedPlayer>(rest));
+  }
+  explicit AcceptedPlayer(ByteStream& stream) {
+    stream >> id >> player;
+  };
+
+  void say_hello() override {
+    std::cout << "I am AcceptedPlayer "<< " id: " << id
+              << " player: " << player;
+  }
+};
+
+class GameStarted : public Message {
+ private:
+  std::map<PlayerId, Player> players;
+
+ public:
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(std::make_shared<GameStarted>(rest));
+  }
+  explicit GameStarted(ByteStream& stream) {
+    stream >> players;
+  };
+
+  void say_hello() override {
+    std::cout << " players: " << players;
+  }
+};
+
+class Event : public Message {
+ public:
+  static std::map<uint8_t, MessageFactory>& event_message_map() {
+    static auto* ans = new std::map<uint8_t, MessageFactory>();
+    return *ans;
+  };
+  static void register_to_map(uint8_t key, MessageFactory val) {
+    event_message_map().insert({key, val});
+  }
+
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return unserialize(rest);
+  }
+
+  static std::shared_ptr<Message> unserialize(ByteStream& istr) {
+    uint8_t c;
+    istr >> c;
+    return event_message_map()[c](istr);
+  }
+};
+
+class BombPlaced : public Message {
+ private:
+  BombId id;
+  Position position;
+
+ public:
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(std::make_shared<BombPlaced>(rest));
+  }
+  explicit BombPlaced(ByteStream& stream) {
+    stream >> id >> position;
+  };
+
+  void say_hello() override {
+    std::cout << "I am BombPlaced id: " << id << " posiiton " << position;
+  }
+};
+
+class BombExploded : public Message {
+ private:
+  BombId id{};
+  std::vector<PlayerId> robots_destroyed;
+  std::vector<Position> blocks_destroyed;
+
+ public:
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(std::make_shared<BombExploded>(rest));
+  }
+  explicit BombExploded(ByteStream& stream) {
+    stream >> id >> robots_destroyed >> blocks_destroyed;
+  };
+
+  void say_hello() override {
+    std::cout << "I am BombExploded id: " << id << "robots destroyed: \n " << robots_destroyed << " blocks destr\n" << blocks_destroyed;
+  }
+};
+
+class PlayerMoved : public Message {
+ private:
+  PlayerId id{};
+  Position position;
+
+ public:
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(std::make_shared<PlayerMoved>(rest));
+  }
+  explicit PlayerMoved(ByteStream& stream) {
+    stream >> id >> position;
+  };
+
+  void say_hello() override {
+    std::cout << "I am PlayerMoved id: " << id << " posiiton " << position;
+  }
+};
+
+class BlockPlaced : public Message {
+ private:
+  Position position;
+
+ public:
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(std::make_shared<BlockPlaced>(rest));
+  }
+  explicit BlockPlaced(ByteStream& stream) {
+    stream >> position;
+  };
+
+  void say_hello() override {
+    std::cout << "I am BlockPlaced posiiton: " << position;
+  }
+};
+
+class Turn : public Message {
+ private:
+  uint16_t turn;
+  std::vector<std::shared_ptr<Message>> events;
+
+ public:
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(std::make_shared<Turn>(rest));
+  }
+  explicit Turn(ByteStream& stream) {
+    stream >> turn;
+    uint32_t len;
+    stream >> len;
+    events.resize(len);
+    for (int i = 0; i < len; ++i) {
+      events[i] = Event::create(stream);
+    }
+  };
+
+  void say_hello() override {
+    std::cout << " I AM TURN ";
+  }
+};
+
+class GameEnded : public Message {
+ private:
+  std::map<PlayerId, Score> scores;
+
+ public:
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(std::make_shared<GameEnded>(rest));
+  }
+  explicit GameEnded(ByteStream& stream) {
+    stream >> scores;
+  };
+
+  void say_hello() override {
+    std::cout << "I am GameEnded "<< " scores: \n" << scores;
   }
 };
 

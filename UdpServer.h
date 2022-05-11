@@ -6,6 +6,7 @@
 #define SIK_ZAD3_UDPSERVER_H
 
 #include "ByteStream.h"
+#include "Messages.h"
 #include "boost/array.hpp"
 #include "boost/asio.hpp"
 #include "boost/bind/bind.hpp"
@@ -33,7 +34,9 @@ class UdpServer {
   }
 
   void handle_receive(const boost::system::error_code& error) {
-    std::cerr << "GOT MSG";
+    recv_bstream.resetPtr();
+    std::shared_ptr<Message> k = InputMessage::unserialize(recv_bstream);
+    k->say_hello();
     if (!error) {
       boost::shared_ptr<std::string> message(
           new std::string("LOL"));

@@ -54,6 +54,25 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  DrawMessage::register_to_map(0, Lobby::create);
+  DrawMessage::register_to_map(1, Game::create);
+  InputMessage::register_to_map(0, PlaceBomb::create);
+  InputMessage::register_to_map(1, PlaceBlock::create);
+  InputMessage::register_to_map(2, Move::create);
+  ClientMessage::register_to_map(0, Join::create);
+  ClientMessage::register_to_map(1, PlaceBomb::create);
+  ClientMessage::register_to_map(2, PlaceBlock::create);
+  ClientMessage::register_to_map(3, Move::create);
+  ServerMessage::register_to_map(0, Hello::create);
+  ServerMessage::register_to_map(1, AcceptedPlayer::create);
+  ServerMessage::register_to_map(2, GameStarted::create);
+  ServerMessage::register_to_map(3, GameEnded::create);
+  ServerMessage::register_to_map(4, Turn::create);
+  Event::register_to_map(0, BombPlaced::create);
+  Event::register_to_map(1, BombExploded::create);
+  Event::register_to_map(2, PlayerMoved::create);
+  Event::register_to_map(3, BlockPlaced::create);
+
   try {
     boost::asio::io_context io_context;
     UdpServer serv(io_context, opts.port, opts.display_address);
@@ -63,15 +82,11 @@ int main(int argc, char *argv[]) {
     std::cerr << e.what() << std::endl;
   }
 
-//  Message::message_map().insert({'0', InputMessage::create});
-//  InputMessage::input_message_map().insert({'0', PlaceBomb::create});
-  DrawMessage::register_to_map('0', Lobby::create);
-  DrawMessage::register_to_map('1', Game::create);
-  InputMessage::register_to_map('0', PlaceBomb::create);
-  InputMessage::register_to_map('1', PlaceBlock::create);
-  InputMessage::register_to_map('2', Move::create);
+
+
+
 //  ByteStream k;
-//  k << '0';
+//  k << 1;
 //  std::string sname("SERW");
 //  uint8_t players_count{1};
 //  uint16_t size_x{2};
@@ -84,14 +99,12 @@ int main(int argc, char *argv[]) {
 //  std::map<uint8_t, Player> players;
 //  players.insert(p1);
 //  players.insert(p2);
+  // -----------------------
 //  k<< sname << players_count << size_x << size_y << game_length << explosion_radius << bomb_timer << players;
 //  k.resetPtr();
-//  std::shared_ptr<DrawMessage> l = DrawMessage::unserialize(k);
+//  std::shared_ptr<Message> l = DrawMessage::unserialize(k);
 //  l->say_hello();
-//  k<< sname;
-//  k >> sname;
-//  std::cout << sname;
-//  std::cout << l << "\n\n";
+  /* game */
 //  k.resetPtr();
 //  std::map<Message::PlayerId, Position> player_positions;
 //  std::pair<Message::PlayerId, Position> player_pos1 {2, {0,0}};
@@ -109,9 +122,10 @@ int main(int argc, char *argv[]) {
 //  scores.insert({1,3});
 //  scores.insert({2,5});
 //  uint16_t turn = 20;
-//  k << sname << size_x << size_y << game_length << turn << players << player_positions << blocks << bombs << explosions << scores;
+//  k << 1 << sname << size_x << size_y << game_length << turn << players << player_positions << blocks << bombs << explosions << scores;
 //  k.resetPtr();
-//  Game game(k);
+//  std::shared_ptr<Message> l = DrawMessage::unserialize(k);
+//  l->say_hello();
 //  std::cout << game;
 
 
