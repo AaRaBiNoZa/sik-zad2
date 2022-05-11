@@ -1,9 +1,9 @@
-#set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 20)
 
 cmake_minimum_required(VERSION 3.18)
 project(sik_zad3)
 
-SET(CMAKE_CXX_FLAGS "-std=c++20")
+SET(CMAKE_CXX_FLAGS "-std=c++20 -pthread")
 
 set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)

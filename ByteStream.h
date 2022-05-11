@@ -15,6 +15,10 @@ class ByteStream {
 
  public:
   ByteStream() : data(256), ptr_to_act_el(0){};
+
+  std::vector<uint8_t>& getData() {
+    return data;
+  }
   void resetPtr() {
     ptr_to_act_el = 0;
   }

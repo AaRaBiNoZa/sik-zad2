@@ -300,4 +300,42 @@ class Game : public DrawMessage {
   }
 };
 
+class ClientMessage : public Message {
+ public:
+  typedef std::shared_ptr<ClientMessage> (*ClientMessageFactory)(ByteStream&);
+  static std::map<char, ClientMessageFactory>& client_message_map() {
+    static auto* ans = new std::map<char, ClientMessageFactory>();
+    return *ans;
+  };
+  static void register_to_map(char key, ClientMessageFactory val) {
+    client_message_map().insert({key, val});
+  }
+
+  static std::shared_ptr<Message> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<Message>(unserialize(rest));
+  }
+
+  static std::shared_ptr<ClientMessage> unserialize(ByteStream& istr) {
+    char c;
+    istr >> c;
+    return client_message_map()[c](istr);
+  }
+};
+
+class Join : public ClientMessage {
+ private:
+  std::string name;
+
+ public:
+  static std::shared_ptr<ClientMessage> create(ByteStream& rest) {
+    return std::dynamic_pointer_cast<ClientMessage>(std::make_shared<Join>(rest));
+  }
+  explicit Join(ByteStream& stream) {
+    stream >> name;
+  };
+  void say_hello() override {
+    std::cout << "I Am Join" << " name: " << name;
+  }
+};
+
 #endif  // SIK_ZAD3_MESSAGES_H

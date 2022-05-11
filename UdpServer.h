@@ -5,9 +5,10 @@
 #ifndef SIK_ZAD3_UDPSERVER_H
 #define SIK_ZAD3_UDPSERVER_H
 
+#include "ByteStream.h"
+#include "boost/array.hpp"
 #include "boost/asio.hpp"
 #include "boost/bind/bind.hpp"
-#include "boost/array.hpp"
 #include "common.h"
 
 using boost::asio::ip::resolver_base;
@@ -17,15 +18,22 @@ class UdpServer {
  private:
   udp::socket socket;
   udp::endpoint display_endpoint;  // not needed i think
-  boost::array<char, 1> recv_buffer;
+  ByteStream recv_bstream;
 
+  void init(const boost::system::error_code& error) {
+    std::cerr << "GOT HERE";
+    if (!error) {
+      start_receive();
+    }
+  }
   void start_receive() {
-    socket.async_receive(boost::asio::buffer(recv_buffer),
+    socket.async_receive(boost::asio::buffer(recv_bstream.getData()),
                          boost::bind(&UdpServer::handle_receive, this,
                                      boost::asio::placeholders::error));
   }
 
   void handle_receive(const boost::system::error_code& error) {
+    std::cerr << "GOT MSG";
     if (!error) {
       boost::shared_ptr<std::string> message(
           new std::string("LOL"));
@@ -48,7 +56,7 @@ class UdpServer {
  public:
   UdpServer(boost::asio::io_context& io_context, uint16_t port,
             std::string display_addr)
-      : socket(io_context, udp::endpoint(udp::v4(), port)) {
+      : socket(io_context, udp::endpoint(udp::v4(), port)), recv_bstream() {
     auto [display_host, display_port] = extract_host_and_port(display_addr);
 
     udp::resolver udp_resolver(io_context);
@@ -56,7 +64,7 @@ class UdpServer {
                                              resolver_base::numeric_service);
 
     try {
-      socket.connect(display_endpoint);
+      socket.async_connect(display_endpoint, boost::bind(&UdpServer::init, this, boost::asio::placeholders::error));
     } catch (std::exception& e) {
       std::cerr << "Error: " << e.what() << "\n";
       exit(1);

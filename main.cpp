@@ -9,17 +9,22 @@
 #include "ByteStream.h"
 
 namespace po = boost::program_options;
-
-bool parse_command_line(int argc, char *argv[]) {
+struct ClientCommandLineOpts {
+  std::string display_address;
+  std::string player_name;
+  uint16_t port;
+  std::string server_address;
+};
+bool parse_command_line(int argc, char *argv[], ClientCommandLineOpts* out) {
   try {
     po::options_description desc("Allowed options");
     desc.add_options()(
-        "display-address,d", po::value<std::string>()->required(),
+        "display-address,d", po::value<std::string>(&out->display_address)->required(),
         "<(nazwa hosta):(port) lub (IPv4):(port) lub (IPv6):(port)>")(
         "help,h", "produce help message")("player-name,n",
-                                          po::value<std::string>()->required())(
-        "port,p", po::value<uint16_t>()->required())(
-        "server-address,s", po::value<std::string>()->required(),
+                                          po::value<std::string>(&out->player_name)->required())(
+        "port,p", po::value<uint16_t>(&out->port)->required())(
+        "server-address,s", po::value<std::string>(&out->server_address)->required(),
         "<(nazwa hosta):(port) lub (IPv4):(port) lub (IPv6):(port)>");
 
     po::variables_map vm;
@@ -43,42 +48,46 @@ bool parse_command_line(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-  bool parse_results = parse_command_line(argc, argv);
+  ClientCommandLineOpts opts;
+  bool parse_results = parse_command_line(argc, argv, &opts);
   if (!parse_results) {
     return 1;
   }
-//
-//  try {
-//    boost::asio::io_context io_context;
-//    UdpServer serv(io_context, 2022, "127.0.0.1:2024");
+
+  try {
+    boost::asio::io_context io_context;
+    UdpServer serv(io_context, opts.port, opts.display_address);
 //    TcpClientConnection serv2(io_context, 2022, "127.0.0.1:2023");
-//    io_context.run();
-//  } catch (std::exception &e) {
-//    std::cerr << e.what() << std::endl;
-//  }
+    io_context.run();
+  } catch (std::exception &e) {
+    std::cerr << e.what() << std::endl;
+  }
 
 //  Message::message_map().insert({'0', InputMessage::create});
 //  InputMessage::input_message_map().insert({'0', PlaceBomb::create});
   DrawMessage::register_to_map('0', Lobby::create);
   DrawMessage::register_to_map('1', Game::create);
-  ByteStream k;
-  k << '0';
-  std::string sname("SERW");
-  uint8_t players_count{1};
-  uint16_t size_x{2};
-  uint16_t size_y{3};
-  uint16_t game_length{4};
-  uint16_t explosion_radius{5};
-  uint16_t bomb_timer{6};
-  std::pair<uint8_t, Player> p1{8,{"adam", "al"}};
-  std::pair<uint8_t, Player> p2{9,{"adam", "lala"}};
-  std::map<uint8_t, Player> players;
-  players.insert(p1);
-  players.insert(p2);
-  k<< sname << players_count << size_x << size_y << game_length << explosion_radius << bomb_timer << players;
-  k.resetPtr();
-  std::shared_ptr<DrawMessage> l = DrawMessage::unserialize(k);
-  l->say_hello();
+  InputMessage::register_to_map('0', PlaceBomb::create);
+  InputMessage::register_to_map('1', PlaceBlock::create);
+  InputMessage::register_to_map('2', Move::create);
+//  ByteStream k;
+//  k << '0';
+//  std::string sname("SERW");
+//  uint8_t players_count{1};
+//  uint16_t size_x{2};
+//  uint16_t size_y{3};
+//  uint16_t game_length{4};
+//  uint16_t explosion_radius{5};
+//  uint16_t bomb_timer{6};
+//  std::pair<uint8_t, Player> p1{8,{"adam", "al"}};
+//  std::pair<uint8_t, Player> p2{9,{"adam", "lala"}};
+//  std::map<uint8_t, Player> players;
+//  players.insert(p1);
+//  players.insert(p2);
+//  k<< sname << players_count << size_x << size_y << game_length << explosion_radius << bomb_timer << players;
+//  k.resetPtr();
+//  std::shared_ptr<DrawMessage> l = DrawMessage::unserialize(k);
+//  l->say_hello();
 //  k<< sname;
 //  k >> sname;
 //  std::cout << sname;
