@@ -1,20 +1,17 @@
+#include "Client.h"
+
 #include <iostream>
 #include <string>
 
+#include "ByteStream.h"
+#include "Client.h"
 #include "ClientConfig.h"
+#include "Messages.h"
+#include "TcpClientConnection.h"
 #include "UdpServer.h"
 #include "boost/program_options.hpp"
-#include "TcpClientConnection.h"
-#include "Messages.h"
-#include "ByteStream.h"
-
 namespace po = boost::program_options;
-struct ClientCommandLineOpts {
-  std::string display_address;
-  std::string player_name;
-  uint16_t port;
-  std::string server_address;
-};
+
 bool parse_command_line(int argc, char *argv[], ClientCommandLineOpts* out) {
   try {
     po::options_description desc("Allowed options");

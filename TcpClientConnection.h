@@ -5,6 +5,13 @@
 #ifndef SIK_ZAD3_TCPCLIENTCONNECTION_H
 #define SIK_ZAD3_TCPCLIENTCONNECTION_H
 
+#include <boost/array.hpp>
+#include <boost/asio.hpp>
+#include <boost/bind.hpp>
+#include <iostream>
+
+#include "common.h"
+
 using boost::asio::ip::resolver_base;
 using boost::asio::ip::tcp;
 

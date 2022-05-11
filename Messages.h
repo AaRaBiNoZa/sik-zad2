@@ -130,7 +130,7 @@ class Message {
     message_map().insert({key, val});
   }
   virtual void say_hello() {
-    std::cout << "Hello i am Message";
+    std::cerr << "Hello i am Message";
   };
   static std::shared_ptr<Message> unserialize(ByteStream& istr) {
     uint8_t c;
@@ -179,7 +179,7 @@ class PlaceBomb : public Message {
   }
   explicit PlaceBomb(ByteStream& rest){};
   void say_hello() override {
-    std::cout << "I am placebomb";
+    std::cerr << "I am placebomb";
   }
 };
 
@@ -191,7 +191,7 @@ class PlaceBlock : public Message {
   }
   explicit PlaceBlock(ByteStream& rest){};
   void say_hello() override {
-    std::cout << "I am placeblock";
+    std::cerr << "I am placeblock";
   }
 };
 
@@ -208,7 +208,7 @@ class Move : public Message {
     rest >> direction;
   };
   void say_hello() override {
-    std::cout << "I am Move in dir: " << direction << '\n';
+    std::cerr << "I am Move in dir: " << direction << '\n';
   }
 };
 
@@ -254,7 +254,7 @@ class Lobby : public Message {
         explosion_radius >> bomb_timer >> players;
   };
   void say_hello() override {
-    std::cout
+    std::cerr
        << " server_name: " << this->server_name
        << " players_count: " << this->players_count
        << " size_x: " << this->size_x << " size_y: " << this->size_y
@@ -288,7 +288,7 @@ class Game : public Message {
         players >> player_positions >> blocks >> bombs >> explosions >> scores;
   };
   void say_hello() override {
-    std::cout
+    std::cerr
        << " server_name: " << this->server_name << " size_x: " << this->size_x
        << " size_y: " << this->size_y << " game_length: " << this->game_length
        << " turn: " << this->turn << " players: " << this->players
@@ -331,7 +331,7 @@ class Join : public Message {
     stream >> name;
   };
   void say_hello() override {
-    std::cout << "I Am Join" << " name: " << name;
+    std::cerr << "I Am Join" << " name: " << name;
   }
 };
 
@@ -375,7 +375,7 @@ class Hello : public Message {
   };
 
   void say_hello() override {
-    std::cout
+    std::cerr
               << " server_name: " << server_name
               << " players_count: " << players_count
               << " size_x: " << size_x << " size_y: " << size_y
@@ -399,7 +399,7 @@ class AcceptedPlayer : public Message {
   };
 
   void say_hello() override {
-    std::cout << "I am AcceptedPlayer "<< " id: " << id
+    std::cerr << "I am AcceptedPlayer "<< " id: " << id
               << " player: " << player;
   }
 };
@@ -417,7 +417,7 @@ class GameStarted : public Message {
   };
 
   void say_hello() override {
-    std::cout << " players: " << players;
+    std::cerr << " players: " << players;
   }
 };
 
@@ -456,7 +456,7 @@ class BombPlaced : public Message {
   };
 
   void say_hello() override {
-    std::cout << "I am BombPlaced id: " << id << " posiiton " << position;
+    std::cerr << "I am BombPlaced id: " << id << " posiiton " << position;
   }
 };
 
@@ -475,7 +475,7 @@ class BombExploded : public Message {
   };
 
   void say_hello() override {
-    std::cout << "I am BombExploded id: " << id << "robots destroyed: \n " << robots_destroyed << " blocks destr\n" << blocks_destroyed;
+    std::cerr << "I am BombExploded id: " << id << "robots destroyed: \n " << robots_destroyed << " blocks destr\n" << blocks_destroyed;
   }
 };
 
@@ -493,7 +493,7 @@ class PlayerMoved : public Message {
   };
 
   void say_hello() override {
-    std::cout << "I am PlayerMoved id: " << id << " posiiton " << position;
+    std::cerr << "I am PlayerMoved id: " << id << " posiiton " << position;
   }
 };
 
@@ -510,7 +510,7 @@ class BlockPlaced : public Message {
   };
 
   void say_hello() override {
-    std::cout << "I am BlockPlaced posiiton: " << position;
+    std::cerr << "I am BlockPlaced posiiton: " << position;
   }
 };
 
@@ -534,7 +534,7 @@ class Turn : public Message {
   };
 
   void say_hello() override {
-    std::cout << " I AM TURN ";
+    std::cerr << " I AM TURN ";
   }
 };
 
@@ -551,7 +551,7 @@ class GameEnded : public Message {
   };
 
   void say_hello() override {
-    std::cout << "I am GameEnded "<< " scores: \n" << scores;
+    std::cerr << "I am GameEnded "<< " scores: \n" << scores;
   }
 };
 

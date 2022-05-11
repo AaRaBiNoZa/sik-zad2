@@ -5,8 +5,13 @@
 #ifndef SIK_ZAD3_BYTESTREAM_H
 #define SIK_ZAD3_BYTESTREAM_H
 
+#include <netinet/in.h>
+
+#include <cstring>
+#include <map>
 #include <memory>
 #include <ostream>
+#include <vector>
 
 class ByteStream {
  private:
