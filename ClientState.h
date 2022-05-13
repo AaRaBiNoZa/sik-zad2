@@ -5,14 +5,7 @@
 #ifndef SIK_ZAD3_CLIENTSTATE_H
 #define SIK_ZAD3_CLIENTSTATE_H
 
-#include "Messages.h"
-class ClientState {
- private:
-  DrawMessage Lobby;
-  DrawMessage Game;
-  bool game_on;
- public:
-  ClientState() : game_on(false) {};
-};
+class Lobby;
+class Game;
 
 #endif  // SIK_ZAD3_CLIENTSTATE_H

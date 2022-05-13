@@ -4,13 +4,13 @@
 #include <string>
 
 #include "ByteStream.h"
-#include "Client.h"
-#include "ClientConfig.h"
 #include "Messages.h"
-#include "TcpClientConnection.h"
 #include "UdpServer.h"
 #include "boost/program_options.hpp"
+#include <boost/bind/bind.hpp>
+
 namespace po = boost::program_options;
+using namespace boost::placeholders;
 
 bool parse_command_line(int argc, char *argv[], ClientCommandLineOpts* out) {
   try {
@@ -57,9 +57,9 @@ int main(int argc, char *argv[]) {
   InputMessage::register_to_map(1, PlaceBlock::create);
   InputMessage::register_to_map(2, Move::create);
   ClientMessage::register_to_map(0, Join::create);
-  ClientMessage::register_to_map(1, PlaceBomb::create);
-  ClientMessage::register_to_map(2, PlaceBlock::create);
-  ClientMessage::register_to_map(3, Move::create);
+//  ClientMessage::register_to_map(1, PlaceBomb::create);
+//  ClientMessage::register_to_map(2, PlaceBlock::create);
+//  ClientMessage::register_to_map(3, Move::create);
   ServerMessage::register_to_map(0, Hello::create);
   ServerMessage::register_to_map(1, AcceptedPlayer::create);
   ServerMessage::register_to_map(2, GameStarted::create);

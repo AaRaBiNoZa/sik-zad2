@@ -11,15 +11,27 @@
 #include <map>
 #include <memory>
 #include <ostream>
+#include <utility>
 #include <vector>
+
+#include "Buffer.h"
 
 class ByteStream {
  private:
   std::vector<uint8_t> data;
+  std::unique_ptr<StreamBuffer> buffer;
   uint8_t ptr_to_act_el;
 
  public:
-  ByteStream() : data(256), ptr_to_act_el(0){};
+//  explicit ByteStream(std::shared_ptr<boost::asio::ip::tcp::socket> socket)
+//      : data(256),
+//        buffer(std::make_shared<TcpStreamBuffer>(socket)),
+//        ptr_to_act_el(0){};
+  explicit ByteStream(std::unique_ptr<StreamBuffer> buff)
+      : data(256),
+        buffer(std::move(buff)),
+        ptr_to_act_el(0){};
+  //  explicit ByteStream() = default;
 
   std::vector<uint8_t>& getData() {
     return data;
@@ -28,79 +40,96 @@ class ByteStream {
     ptr_to_act_el = 0;
   }
 
+  void reset() {
+    buffer->reset();
+  }
+
+  void get() {
+    buffer->get();
+  }
+
+  void endRec() {
+    buffer->endRec();
+  }
+
+  void endWrite() {
+    buffer->send();
+  }
+
   ByteStream& operator<<(uint8_t x) {
-    data[ptr_to_act_el] = x;
-    ptr_to_act_el += sizeof(x);
+    data[0] = x;
+    buffer->writeNBytes(sizeof(x), data);
     return *this;
   }
   ByteStream& operator>>(uint8_t& x) {
-    x = data[ptr_to_act_el];
-    ptr_to_act_el += sizeof(x);
+    buffer->getNBytes(sizeof(x), data);
+    x = data[0];
     return *this;
   }
 
   ByteStream& operator<<(uint16_t x) {
     x = htons(x);
-    std::memcpy(&data[ptr_to_act_el], &x, sizeof(x));
-    ptr_to_act_el += sizeof(x);
+    std::memcpy(&data[0], &x, sizeof(x));
+    buffer->writeNBytes(sizeof(x), data);
     return *this;
   }
   ByteStream& operator>>(uint16_t& x) {
-    std::memcpy(&x, &data[ptr_to_act_el], sizeof(x));
+    buffer->getNBytes(sizeof(x), data);
+    std::memcpy(&x, &data[0], sizeof(x));
     x = ntohs(x);
-    ptr_to_act_el += sizeof(x);
     return *this;
   }
 
   ByteStream& operator<<(uint64_t x) {
     x = htobe64(x);
-    std::memcpy(&data[ptr_to_act_el], &x, sizeof(x));
-    ptr_to_act_el += sizeof(x);
+    std::memcpy(&data[0], &x, sizeof(x));
+    buffer->writeNBytes(sizeof(x), data);
     return *this;
   }
   ByteStream& operator>>(uint64_t& x) {
-    std::memcpy(&x, &data[ptr_to_act_el], sizeof(x));
+    buffer->getNBytes(sizeof(x), data);
+    std::memcpy(&x, &data[0], sizeof(x));
     x = be64toh(x);
-    ptr_to_act_el += sizeof(x);
     return *this;
   }
 
   ByteStream& operator<<(uint32_t x) {
     x = htonl(x);
-    std::memcpy(&data[ptr_to_act_el], &x, sizeof(x));
-    ptr_to_act_el += sizeof(x);
+    std::memcpy(&data[0], &x, sizeof(x));
+    buffer->writeNBytes(sizeof(x), data);
     return *this;
   }
   ByteStream& operator>>(uint32_t& x) {
-    std::memcpy(&x, &data[ptr_to_act_el], sizeof(x));
+    buffer->getNBytes(sizeof(x), data);
+    std::memcpy(&x, &data[0], sizeof(x));
     x = ntohl(x);
-    ptr_to_act_el += sizeof(x);
     return *this;
   }
 
   ByteStream& operator>>(char& x) {
-    x = data[ptr_to_act_el];
-    ptr_to_act_el += sizeof(x);
+    buffer->getNBytes(sizeof(x), data);
+    x = data[0];
     return *this;
   }
   ByteStream& operator<<(char x) {
-    data[ptr_to_act_el] = x;
-    ptr_to_act_el += sizeof(x);
+    data[0] = x;
+    buffer->writeNBytes(sizeof(x), data);
+
     return *this;
   }
   ByteStream& operator>>(std::string& s) {
     uint8_t length;
     *this >> length;
     s.resize(length);
-    std::memcpy(s.data(), &data[ptr_to_act_el], s.size());
-    ptr_to_act_el += s.length();
+    buffer->getNBytes(length, data);
+    std::memcpy(s.data(), &data[0], s.size());
     return *this;
   }
   ByteStream& operator<<(std::string s) {
     uint8_t length = s.size();
     *this << length;
-    std::memcpy(&data[ptr_to_act_el], s.data(), length);
-    ptr_to_act_el += s.length();
+    std::memcpy(&data[0], s.data(), length);
+    buffer->writeNBytes(s.size(), data);
     return *this;
   }
 
@@ -140,7 +169,7 @@ class ByteStream {
   ByteStream& operator<<(std::map<T1, T2> x) {
     uint32_t len = x.size();
     *this << len;
-    for (auto& it: x) {
+    for (auto& it : x) {
       *this << it;
     }
     return *this;
