@@ -15,5 +15,30 @@ std::pair<std::string, std::string> extract_host_and_port(std::string addr) {
     return {clean_host, clean_port};
 };
 
+// help for my debug
+std::ostream& operator<<(std::ostream& os, uint8_t x) {
+  os << (char)(x + '0');
+
+  return os;
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& os, std::vector<T> v) {
+  for (auto k : v) {
+    os << k << '\n';
+  }
+
+  return os;
+}
+
+template <typename T1, typename T2>
+std::ostream& operator<<(std::ostream& os, std::map<T1, T2> v) {
+  for (auto [k, val] : v) {
+    os << "{" << k << " : " << val << "}" << '\n';
+  }
+
+  return os;
+}
+
 
 #endif  // SIK_ZAD3_COMMON_H

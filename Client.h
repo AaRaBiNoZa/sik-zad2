@@ -8,18 +8,14 @@
 //#include "ClientState.h"
 #include "TcpClientConnection.h"
 #include "Messages.h"
+#include "utils.h"
 #include <boost/bind/bind.hpp>
 
 using boost::asio::ip::resolver_base;
 using boost::asio::ip::tcp;
 using boost::asio::ip::udp;
 
-struct ClientCommandLineOpts {
-  std::string display_address;
-  std::string player_name;
-  uint16_t port;
-  std::string server_address;
-};
+
 
 
 

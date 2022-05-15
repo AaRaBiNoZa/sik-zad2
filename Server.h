@@ -6,6 +6,7 @@
 #define SIK_ZAD3_SERVER_H
 
 #include <boost/asio.hpp>
+#include <boost/bind/bind.hpp>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -14,17 +15,22 @@ using boost::asio::ip::resolver_base;
 using boost::asio::ip::tcp;
 
 
-
 class TcpConnection {
  private:
   std::shared_ptr<tcp::socket> socket;
   ByteStream tcp_stream;
+  std::shared_ptr<ServerState> server_state;
+  std::optional<PlayerId> my_id;
 
  public:
   void start_receive() {
     socket->async_wait(tcp::socket::wait_read,
                        boost::bind(&TcpConnection::rcv_handler, this,
                                    boost::asio::placeholders::error));
+  }
+
+  void start_playing() {
+    return;
   }
 
   void rcv_handler(const boost::system::error_code& error) {
@@ -34,7 +40,12 @@ class TcpConnection {
         ClientMessage::unserialize(tcp_stream);
     tcp_stream.endRec();
     rec_message->say_hello();
-    start_receive();
+    rec_message->updateServerState(*server_state, my_id);
+    if (my_id) {
+      start_playing();
+    } else {
+      start_receive();
+    }
   }
 
   void sent(const boost::system::error_code& error) {
@@ -53,14 +64,12 @@ class TcpConnection {
   std::shared_ptr<tcp::socket> getSocket() {
     return socket;
   }
-  explicit TcpConnection(boost::asio::io_context& io)
+  explicit TcpConnection(boost::asio::io_context& io, std::shared_ptr<ServerState> state)
       : socket(std::make_shared<tcp::socket>(io)),
-        tcp_stream(std::make_unique<TcpStreamBuffer>(socket)){
+        tcp_stream(std::make_unique<TcpStreamBuffer>(socket)), server_state(state) {
 
         };
-  void run() {
-    return;
-  }
+
 };
 
 // will create new connection
@@ -74,7 +83,7 @@ class Connector {
 
   void start_accept() {
     std::shared_ptr<TcpConnection> connection =
-        std::make_shared<TcpConnection>(io_context);
+        std::make_shared<TcpConnection>(io_context, state);
     acceptor.async_accept(
         *connection->getSocket(),
         boost::bind(&Connector::connectionHandler, this, connection,
@@ -112,6 +121,7 @@ class Server {
         connector(std::make_shared<Connector>(io_context, opts, server_state)) {
     std::jthread t(&Connector::init, connector);
   };
+
 };
 
 #endif  // SIK_ZAD3_SERVER_H
