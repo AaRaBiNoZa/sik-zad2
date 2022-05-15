@@ -7,7 +7,6 @@
 
 //#include "ClientState.h"
 #include "TcpClientConnection.h"
-#include "UdpServer.h"
 #include "Messages.h"
 #include <boost/bind/bind.hpp>
 
@@ -50,7 +49,7 @@ class Client {
     tcp_stream.reset();
     if (!aggregated_state.game_on) {
       Join(name).serialize(tcp_stream);
-    } else if (aggregated_state.am_i_playing) {
+    } else {
       rec_message->serialize(tcp_stream);
     }
     tcp_stream.endWrite();
@@ -58,17 +57,26 @@ class Client {
   }
 
   void tcp_start_receive() {
-
+    tcp_server_sock->async_wait(tcp::socket::wait_read, boost::bind(&Client::tcp_msg_rcv_handler, this, boost::asio::placeholders::error));
   }
 
   void tcp_msg_rcv_handler(const boost::system::error_code& error) {
     tcp_stream.reset();
     std::shared_ptr<ServerMessage> rec_message = ServerMessage::unserialize(tcp_stream);
     tcp_stream.endRec();
+    rec_message->say_hello();
+    std::cerr << '\n';
 
-    udp_stream.reset();
-
-
+    if (rec_message->updateClientState(aggregated_state)) {
+      udp_stream.reset();
+      if (!aggregated_state.game_on) {
+        Lobby(aggregated_state).serialize(udp_stream);
+      } else {
+        Game(aggregated_state).serialize(udp_stream);
+      }
+      udp_stream.endWrite();
+    }
+    tcp_start_receive();
   }
 
 //  void tcp_send_response() {
@@ -103,6 +111,7 @@ class Client {
     udp_display_sock->connect(display_endpoint);
     tcp_server_sock->connect(server_endpoint);
     udp_start_receive();
+    tcp_start_receive();
   };
 };
 

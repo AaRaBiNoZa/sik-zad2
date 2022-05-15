@@ -112,7 +112,9 @@ class UdpStreamBuffer : public StreamBuffer {
     ptr_to_act_el += n;
   }
   void send() override {
-    return;
+    if (ptr_to_act_el != 0) {
+      sock->send(boost::asio::buffer(buff, ptr_to_act_el));
+    }
   }
 
   ~UdpStreamBuffer() override = default;

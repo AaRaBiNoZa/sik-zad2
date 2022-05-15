@@ -5,7 +5,6 @@
 
 #include "ByteStream.h"
 #include "Messages.h"
-#include "UdpServer.h"
 #include "boost/program_options.hpp"
 #include <boost/bind/bind.hpp>
 
@@ -63,8 +62,8 @@ int main(int argc, char *argv[]) {
   ServerMessage::register_to_map(0, Hello::create);
   ServerMessage::register_to_map(1, AcceptedPlayer::create);
   ServerMessage::register_to_map(2, GameStarted::create);
-  ServerMessage::register_to_map(3, GameEnded::create);
-  ServerMessage::register_to_map(4, Turn::create);
+  ServerMessage::register_to_map(3, Turn::create);
+  ServerMessage::register_to_map(4, GameEnded::create);
   Event::register_to_map(0, BombPlaced::create);
   Event::register_to_map(1, BombExploded::create);
   Event::register_to_map(2, PlayerMoved::create);

@@ -6,25 +6,12 @@
 #include <string>
 
 #include "ByteStream.h"
-#include "ClientConfig.h"
 #include "Messages.h"
-#include "UdpServer.h"
 #include "boost/program_options.hpp"
+#include "Server.h"
 
 namespace po = boost::program_options;
-struct ServerCommandLineOpts {
-  uint16_t bomb_timer{};
-  uint8_t players_count{};
-  uint64_t turn_duration{};
-  uint16_t explosion_radius{};
-  uint16_t initial_blocks{};
-  uint16_t game_length{};
-  std::string server_name;
-  uint16_t port{};
-  uint32_t seed{};
-  uint16_t size_x{};
-  uint16_t size_y{};
-};
+
 bool parse_command_line(int argc, char *argv[], ServerCommandLineOpts *out) {
   try {
     po::options_description desc("Allowed options");
@@ -74,34 +61,30 @@ int main(int argc, char *argv[]) {
   if (!parse_results) {
     return 1;
   }
-  std::cout << opts.seed;
   DrawMessage::register_to_map(0, Lobby::create);
   DrawMessage::register_to_map(1, Game::create);
   InputMessage::register_to_map(0, PlaceBomb::create);
   InputMessage::register_to_map(1, PlaceBlock::create);
   InputMessage::register_to_map(2, Move::create);
   ClientMessage::register_to_map(0, Join::create);
-  ClientMessage::register_to_map(1, PlaceBomb::create);
-  ClientMessage::register_to_map(2, PlaceBlock::create);
-  ClientMessage::register_to_map(3, Move::create);
+
   ServerMessage::register_to_map(0, Hello::create);
   ServerMessage::register_to_map(1, AcceptedPlayer::create);
   ServerMessage::register_to_map(2, GameStarted::create);
-  ServerMessage::register_to_map(3, GameEnded::create);
-  ServerMessage::register_to_map(4, Turn::create);
+  ServerMessage::register_to_map(3, Turn::create);
+  ServerMessage::register_to_map(4, GameEnded::create);
   Event::register_to_map(0, BombPlaced::create);
   Event::register_to_map(1, BombExploded::create);
   Event::register_to_map(2, PlayerMoved::create);
   Event::register_to_map(3, BlockPlaced::create);
 
-//  try {
-//    boost::asio::io_context io_context;
-//    UdpServer serv(io_context, opts.port, opts.display_address);
-//    //    TcpClientConnection serv2(io_context, 2022, "127.0.0.1:2023");
-//    io_context.run();
-//  } catch (std::exception &e) {
-//    std::cerr << e.what() << std::endl;
-//  }
+  try {
+    boost::asio::io_context io_context;
+    Server serv(io_context, opts);
+    io_context.run();
+  } catch (std::exception &e) {
+    std::cerr << e.what() << std::endl;
+  }
 
   //  ByteStream k;
   //  k << 1;
