@@ -26,13 +26,12 @@ class TcpConnection {
 
  public:
   void start_receive() {
-    socket->async_wait(tcp::socket::wait_read,
-                       boost::bind(&TcpConnection::rcv_handler, this,
-                                   boost::asio::placeholders::error));
+    socket->async_wait(tcp::socket::wait_read, boost::bind(&TcpConnection::rcv_handler, this, boost::asio::placeholders::error));
   }
 
   void start_playing() {
-    std::cerr << "Connection started playing";
+    std::cerr << "Connection started playing\n";
+    sleep(20);
   }
 
   void rcv_handler(const boost::system::error_code& error) {
@@ -44,7 +43,7 @@ class TcpConnection {
     rec_message->say_hello();
     rec_message->updateServerState(*server_state, my_id);
     if (my_id) {
-      game_start_barrier->arrive_and_wait();
+      game_start_barrier->arrive();
       start_playing();
     } else {
       start_receive();
@@ -81,13 +80,15 @@ class Connector {
  private:
   boost::asio::io_context& io_context;
   tcp::acceptor acceptor;
-  std::vector<std::thread> threads;
+  std::vector<std::jthread> threads;
   std::shared_ptr<ServerState> state;
   std::shared_ptr<std::barrier<>> game_start_barrier;
+  std::vector<std::shared_ptr<TcpConnection>> connections;
 
   void start_accept() {
     std::shared_ptr<TcpConnection> connection =
         std::make_shared<TcpConnection>(io_context, state, game_start_barrier);
+    connections.push_back(connection);
     acceptor.async_accept(
         *connection->getSocket(),
         boost::bind(&Connector::connectionHandler, this, connection,
@@ -97,7 +98,7 @@ class Connector {
   void connectionHandler(std::shared_ptr<TcpConnection>& connection,
                          const boost::system::error_code& error) {
     std::cerr << "Got a new connection lulz \n";
-    std::jthread t(&TcpConnection::manageConnection, std::ref(io_context),
+    threads.emplace_back(&TcpConnection::manageConnection, std::ref(io_context),
                    std::ref(connection));
     start_accept();
   }
@@ -108,17 +109,18 @@ class Connector {
     connector->io_context.run();
   }
   Connector(boost::asio::io_context& io_context, ServerCommandLineOpts opts,
-            std::shared_ptr<ServerState> state)
+            std::shared_ptr<ServerState> state, std::shared_ptr<std::barrier<>> barrier)
       : io_context(io_context),
         acceptor(io_context, tcp::endpoint(tcp::v4(), opts.port)),
-        state(state){};
+        state(state), game_start_barrier(barrier){};
 };
 
 class Server {
  private:
   std::shared_ptr<ServerState> server_state;
-  std::shared_ptr<Connector> connector;
   std::shared_ptr<std::barrier<>> game_start;
+  std::shared_ptr<Connector> connector;
+  std::jthread jthread;
 
  public:
   void start_game() {
@@ -129,9 +131,9 @@ class Server {
       start_game();
   }
   Server(boost::asio::io_context& io_context, ServerCommandLineOpts opts)
-      : server_state(std::make_shared<ServerState>(opts)),
-        connector(std::make_shared<Connector>(io_context, opts, server_state)), game_start(std::make_shared<std::barrier<>>(server_state->getMaxCount() + 1)) {
-    std::jthread t(&Connector::init, connector);
+      : server_state(std::make_shared<ServerState>(opts)),game_start(std::make_shared<std::barrier<>>(server_state->getMaxCount() + 1)),
+        connector(std::make_shared<Connector>(io_context, opts, server_state, game_start))  {
+    jthread = std::jthread(&Connector::init, connector);
     init();
   };
 
