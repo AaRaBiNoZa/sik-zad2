@@ -28,7 +28,7 @@ class ByteStream {
 //        buffer(std::make_shared<TcpStreamBuffer>(socket)),
 //        ptr_to_act_el(0){};
   explicit ByteStream(std::unique_ptr<StreamBuffer> buff)
-      : data(256),
+      : data(257),
         buffer(std::move(buff)),
         ptr_to_act_el(0){};
   //  explicit ByteStream() = default;
@@ -36,9 +36,7 @@ class ByteStream {
   std::vector<uint8_t>& getData() {
     return data;
   }
-  void resetPtr() {
-    ptr_to_act_el = 0;
-  }
+
 
   void reset() {
     buffer->reset();

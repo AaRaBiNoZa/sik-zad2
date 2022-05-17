@@ -6,31 +6,39 @@
 #define SIK_ZAD3_SERVERSTATE_H
 
 #include <cstdint>
+#include <shared_mutex>
 
 #include "Randomizer.h"
 
 class Event;
+class ClientMessage;
 
 struct PlayerInfo {
   std::string name;
   tcp::endpoint endpoint;
 };
 
-struct GameState {
-  uint16_t turn;
+class GameState {
+ public:
+  std::atomic_uint16_t  turn;
   uint32_t next_bomb_id{};
   std::vector<std::vector<std::shared_ptr<Event>>> all_turns;
   std::map<PlayerId, Position> positions;
   std::map<PlayerId, Score> scores;
   std::map<BombId, Bomb> bombs;
   std::set<Position> blocks;
+  std::vector<std::optional<std::shared_ptr<ClientMessage>>> messages_from_this_turn;
 
- public:
+  explicit GameState(uint8_t players_count) : messages_from_this_turn(players_count){
+
+  };
   uint32_t last_bomb_id() {
     return next_bomb_id - 1;
   }
 
-
+  void addMessage(PlayerId id, std::shared_ptr<ClientMessage> mess) {
+    messages_from_this_turn[id] = mess;
+  }
 
   uint32_t addBomb(PlayerId id, uint16_t timer) {
     bombs.insert({next_bomb_id, {positions[id], timer}});
@@ -94,6 +102,8 @@ class ServerState {
   uint16_t explosion_radius;
   uint16_t initial_blocks;
   uint16_t size_x;
+  uint16_t game_length;
+  std::shared_mutex players_mutex;
   std::optional<GameState> game_state;
 
   uint16_t size_y;
@@ -140,6 +150,10 @@ class ServerState {
     return getPlayerPosition(id);
   }
 
+  void startGame() {
+    game_state.emplace(players.size());
+  }
+
   explicit ServerState(ServerCommandLineOpts opts)
       : players(opts.players_count),
         rand(opts.seed),
@@ -148,7 +162,7 @@ class ServerState {
         explosion_radius(opts.explosion_radius),
         initial_blocks(opts.initial_blocks),
         size_x(opts.size_x),
-        size_y(opts.size_y){};
+        size_y(opts.size_y), game_length(opts.game_length), players_mutex(){};
 };
 
 

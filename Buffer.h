@@ -14,6 +14,20 @@ using boost::asio::ip::resolver_base;
 using boost::asio::ip::tcp;
 using boost::asio::ip::udp;
 
+class BufferException: public std::exception {};
+
+class UdpOverflowException: public BufferException {
+  [[nodiscard]] const char* what() const noexcept override {
+    return "UDP buffer overflow";
+  }
+};
+
+class MessageTooShortException: public BufferException {
+  [[nodiscard]] const char* what() const noexcept override {
+    return "Unserialize expected more";
+  }
+};
+
 class StreamBuffer {
  private:
   std::vector<uint8_t> buff;
@@ -42,7 +56,7 @@ class TcpStreamBuffer : public StreamBuffer {
     boost::asio::read(*sock, boost::asio::buffer(data, n));
   }
 
-  void send() {
+  void send() override {
     if (ptr_to_act_el != 0) {
       sock->send(boost::asio::buffer(buff, ptr_to_act_el));
       ptr_to_act_el = 0;
@@ -61,7 +75,7 @@ class TcpStreamBuffer : public StreamBuffer {
   void reset() override {
     ptr_to_act_el = 0;
   }
-  void writeNBytes(uint8_t n, std::vector<uint8_t> buffer) {
+  void writeNBytes(uint8_t n, std::vector<uint8_t> buffer) override {
     memcpy(&buff[ptr_to_act_el], &buffer[0], n);
     ptr_to_act_el += n;
   }
@@ -76,7 +90,6 @@ class UdpStreamBuffer : public StreamBuffer {
   size_t ptr_to_act_el{};
 
   size_t len{};
-  udp::endpoint remote_endpoint;
 
  public:
   explicit UdpStreamBuffer(std::shared_ptr<boost::asio::ip::udp::socket>  sock)
@@ -92,6 +105,10 @@ class UdpStreamBuffer : public StreamBuffer {
   }
 
   void getNBytes(uint8_t n, std::vector<uint8_t>& data) override {
+    if (ptr_to_act_el + n >= len) {
+      throw MessageTooShortException();
+    }
+
     for (size_t i = 0; i < n; ++i) {
       data[i] = buff[ptr_to_act_el];
       ptr_to_act_el++;
@@ -108,6 +125,10 @@ class UdpStreamBuffer : public StreamBuffer {
   }
 
   void writeNBytes(uint8_t n, std::vector<uint8_t> buffer) override {
+    if (ptr_to_act_el + n >= max_data_size) {
+      throw UdpOverflowException();
+    }
+
     memcpy(&buff[ptr_to_act_el], &buffer[0], n);
     ptr_to_act_el += n;
   }

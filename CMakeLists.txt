@@ -14,7 +14,7 @@ find_package(Boost 1.74.0 COMPONENTS program_options)
 
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
-    add_executable(sik-zad3-client client.cpp common.h TcpClientConnection.h Messages.h ByteStream.h Randomizer.h ServerState.h Client.h ClientState.h Buffer.h utils.h)
+    add_executable(sik-zad3-client client.cpp common.h TcpClientConnection.h ByteStream.h Randomizer.h ServerState.h Client.h ClientState.h Buffer.h utils.h ClientSerialization.h)
     add_executable(sik-zad3-server server.cpp common.h TcpClientConnection.h Messages.h ByteStream.h server.cpp Randomizer.h ServerState.h Buffer.h Server.h utils.h)
     target_link_libraries(sik-zad3-client ${Boost_LIBRARIES})
     target_link_libraries(sik-zad3-server ${Boost_LIBRARIES})
