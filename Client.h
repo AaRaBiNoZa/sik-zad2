@@ -119,7 +119,7 @@ class Client {
         server_host, server_port, resolver_base::numeric_service);
     boost::asio::ip::tcp::no_delay option(true);
     tcp_server_sock->set_option(option);
-    
+
     udp_display_sock->connect(display_endpoint);
     tcp_server_sock->connect(server_endpoint);
     udp_start_receive();

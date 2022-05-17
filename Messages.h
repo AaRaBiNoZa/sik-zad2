@@ -189,10 +189,6 @@ class ServerMessage : public Message {
 
   virtual bool updateClientState(ClientState& state_to_upd) = 0;
 
-  void serialize(ByteStream& os) override {
-    return;
-  }
-
   void say_hello() override {
     std::cerr << " serv message ";
   }
@@ -525,6 +521,7 @@ class GameEnded : public ServerMessage {
   }
 
   bool updateClientState(ClientState& state_to_upd) override {
+    // scores?
     state_to_upd.scores = scores;
     state_to_upd.game_on = false;
 

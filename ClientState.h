@@ -75,6 +75,18 @@ struct ClientState {
   void addBomb(BombId id, Position pos) {
     bombs[id] = {std::move(pos), bomb_timer};
   }
+
+  void reset() {
+    players.clear();
+    turn = 0;
+    positions.clear();
+    blocks.clear();
+    bombs.clear();
+    explosions.clear();
+    scores.clear();
+    would_die.clear();
+    game_on = false;
+  }
 };
 
 

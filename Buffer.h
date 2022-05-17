@@ -28,6 +28,18 @@ class MessageTooShortException: public BufferException {
   }
 };
 
+class MessageTooLongException: public BufferException {
+  [[nodiscard]] const char* what() const noexcept override {
+    return "Unserialize expected more";
+  }
+};
+
+class ConnectionAborted: public BufferException {
+  [[nodiscard]] const char* what() const noexcept override {
+    return "Connection closed by the peer";
+  }
+};
+
 class StreamBuffer {
  private:
   std::vector<uint8_t> buff;
@@ -53,7 +65,11 @@ class TcpStreamBuffer : public StreamBuffer {
       : sock(std::move(sock)), buff(max_data_size){};
 
   void getNBytes(uint8_t n, std::vector<uint8_t>& data) override {
-    boost::asio::read(*sock, boost::asio::buffer(data, n));
+    try {
+      boost::asio::read(*sock, boost::asio::buffer(data, n));
+    } catch (...) {
+      throw ConnectionAborted();
+    }
   }
 
   void send() override {
@@ -105,7 +121,7 @@ class UdpStreamBuffer : public StreamBuffer {
   }
 
   void getNBytes(uint8_t n, std::vector<uint8_t>& data) override {
-    if (ptr_to_act_el + n >= len) {
+    if (ptr_to_act_el + n > len) {
       throw MessageTooShortException();
     }
 
@@ -117,15 +133,12 @@ class UdpStreamBuffer : public StreamBuffer {
 
   void endRec() override {
     if (len != ptr_to_act_el) {
-      std::cerr << "FUCK YOU";
-    } else {
-      std::cerr << "Read all";
-      ptr_to_act_el = 0;
+      throw MessageTooLongException();
     }
   }
 
   void writeNBytes(uint8_t n, std::vector<uint8_t> buffer) override {
-    if (ptr_to_act_el + n >= max_data_size) {
+    if (ptr_to_act_el + n > max_data_size) {
       throw UdpOverflowException();
     }
 

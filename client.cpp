@@ -9,6 +9,7 @@ int main(int argc, char *argv[]) {
   if (!opts.parse_command_line(argc, argv)) {
     return 1;
   }
+  registerAll();
 
   try {
     boost::asio::io_context io_context;

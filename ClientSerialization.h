@@ -42,7 +42,7 @@ class Join : public Sendable {
     os << getId() << name;
   }
 
-  void say_hello() {
+  void say_hello() override {
     std::cerr << "I Am Join"
               << " name: " << name;
   }
@@ -155,33 +155,7 @@ class Move : public InputMessage {
 
 
 
-class DrawMessage : public Sendable {
- public:
-  typedef std::shared_ptr<DrawMessage> (*DrawMessageFactory)(ByteStream&);
-
-  static std::map<uint8_t, DrawMessageFactory>& draw_message_map() {
-    static auto* ans = new std::map<uint8_t, DrawMessageFactory>();
-    return *ans;
-  };
-  static void register_to_map(uint8_t key, DrawMessageFactory val) {
-    draw_message_map().insert({key, val});
-  }
-
-  static std::shared_ptr<DrawMessage> create(ByteStream& rest) {
-    return unserialize(rest);
-  }
-
-  virtual void serialize(ByteStream& os) = 0;
-
-  static std::shared_ptr<DrawMessage> unserialize(ByteStream& istr) {
-    uint8_t c;
-    istr >> c;
-    if (!draw_message_map().contains(c)) {
-      throw InvalidMessageException();
-    }
-    return draw_message_map()[c](istr);
-  }
-};
+class DrawMessage : public Sendable {};
 
 
 class Game : public DrawMessage {
@@ -199,9 +173,7 @@ class Game : public DrawMessage {
   std::map<PlayerId, Score> scores;
 
  public:
-  static std::shared_ptr<DrawMessage> create(ByteStream& rest) {
-    return std::make_shared<Game>(rest);
-  }
+
   Game() = default;
   explicit Game(ByteStream& stream) {
     stream >> server_name >> size_x >> size_y >> game_length >> turn >>
@@ -259,9 +231,7 @@ class Lobby : public DrawMessage {
   std::map<PlayerId, Player> players;
 
  public:
-  static std::shared_ptr<DrawMessage> create(ByteStream& rest) {
-    return std::make_shared<Lobby>(rest);
-  }
+
   Lobby() = default;
   explicit Lobby(const ClientState& c) {
     server_name = c.server_name;
@@ -624,7 +594,20 @@ class GameEnded : public ServerMessage {
   }
 };
 
-
+void registerAll() {
+  InputMessage::register_to_map(0, PlaceBomb::create);
+  InputMessage::register_to_map(1, PlaceBlock::create);
+  InputMessage::register_to_map(2, Move::create);
+  Event::register_to_map(0, BombPlaced::create);
+  Event::register_to_map(1, BombExploded::create);
+  Event::register_to_map(2, PlayerMoved::create);
+  Event::register_to_map(3, BlockPlaced::create);
+  ServerMessage::register_to_map(0, Hello::create);
+  ServerMessage::register_to_map(1, AcceptedPlayer::create);
+  ServerMessage::register_to_map(2, GameStarted::create);
+  ServerMessage::register_to_map(3, Turn::create);
+  GameEnded::register_to_map(4, GameEnded::create);
+}
 
 
 #endif  // SIK_ZAD3_CLIENTSERIALIZATION_H
