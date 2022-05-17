@@ -101,7 +101,7 @@ class Client {
             io_context, udp::endpoint(udp::v6(), opts.port))),
         udp_stream(std::make_unique<UdpStreamBuffer>(udp_display_sock)),
         tcp_server_sock(std::make_shared<tcp::socket>(
-            io_context, tcp::endpoint(tcp::v4(), opts.port))),
+            io_context, tcp::endpoint(tcp::v6(), opts.port))),
         tcp_stream(std::make_unique<TcpStreamBuffer>(tcp_server_sock)),
         name(opts.player_name) {
     auto [display_host, display_port] =
