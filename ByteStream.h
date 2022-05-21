@@ -9,6 +9,7 @@
 
 #include <cstring>
 #include <map>
+#include <set>
 #include <memory>
 #include <ostream>
 #include <utility>
@@ -20,23 +21,12 @@ class ByteStream {
  private:
   std::vector<uint8_t> data;
   std::unique_ptr<StreamBuffer> buffer;
-  uint8_t ptr_to_act_el;
 
  public:
-//  explicit ByteStream(std::shared_ptr<boost::asio::ip::tcp::socket> socket)
-//      : data(256),
-//        buffer(std::make_shared<TcpStreamBuffer>(socket)),
-//        ptr_to_act_el(0){};
+
   explicit ByteStream(std::unique_ptr<StreamBuffer> buff)
       : data(257),
-        buffer(std::move(buff)),
-        ptr_to_act_el(0){};
-  //  explicit ByteStream() = default;
-
-  std::vector<uint8_t>& getData() {
-    return data;
-  }
-
+        buffer(std::move(buff)){};
 
   void reset() {
     buffer->reset();
@@ -147,6 +137,27 @@ class ByteStream {
     *this << len;
     for (int i = 0; i < len; ++i) {
       *this << x[i];
+    }
+    return *this;
+  }
+
+  template <typename T>
+  ByteStream& operator>>(std::set<T>& x) {
+    uint32_t len;
+    *this >> len;
+    T temp;
+    for (int i = 0; i < len; ++i) {
+      *this >> temp;
+      x.insert(temp);
+    }
+    return *this;
+  }
+  template <typename T>
+  ByteStream& operator<<(std::set<T> x) {
+    uint32_t len = x.size();
+    *this << len;
+    for (auto element: x) {
+      *this << element;
     }
     return *this;
   }

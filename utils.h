@@ -64,7 +64,7 @@ class Position {
     if (x < pos2.x) {
       return true;
     } else if (x == pos2.x) {
-      return x < pos2.x;
+      return y < pos2.y;
     }
     return false;
   }
@@ -95,6 +95,12 @@ class Bomb {
     os << "{" << p.position << " : " << p.timer << "}";
     return os;
   }
+
+  bool operator<(const Bomb& bomb2) const {
+    return position < bomb2.position;
+  }
 };
+
+
 
 #endif  // SIK_ZAD3_UTILS_H

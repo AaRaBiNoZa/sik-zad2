@@ -6,10 +6,11 @@
 #define SIK_ZAD3_CLIENT_H
 
 #include <boost/bind/bind.hpp>
+#include <boost/asio.hpp>
 
 #include "ClientSerialization.h"
+#include "ByteStream.h"
 #include "ClientState.h"
-#include "utils.h"
 
 using boost::asio::ip::resolver_base;
 using boost::asio::ip::tcp;
@@ -34,6 +35,7 @@ class Client {
   void display_msg_rcv_handler(const boost::system::error_code& error) {
     if (error) {
       std::cerr << "Boost error: " << error << std::endl;
+      exit(1);
     }
 
     try {
@@ -41,8 +43,10 @@ class Client {
       udp_stream.reset();
       std::shared_ptr<InputMessage> rec_message =
           InputMessage::unserialize(udp_stream);
-      udp_stream.endRec();
 
+      udp_stream.endRec();
+      rec_message->say_hello();
+      std::cerr << std::endl;
       tcp_stream.reset();
       if (!aggregated_state.game_on) {
         Join(name).serialize(tcp_stream);
@@ -68,12 +72,13 @@ class Client {
   void tcp_msg_rcv_handler(const boost::system::error_code& error) {
     if (error) {
       std::cerr << "Boost error: " << error << std::endl;
+      exit(1);
     }
     try {
       tcp_stream.reset();
       std::shared_ptr<ServerMessage> rec_message =
           ServerMessage::unserialize(tcp_stream);
-      tcp_stream.endRec();
+
       rec_message->say_hello();
       std::cerr << '\n';
 
@@ -99,17 +104,13 @@ class Client {
   Client(boost::asio::io_context& io_context, ClientCommandLineOpts opts)
       : udp_display_sock(std::make_shared<udp::socket>(
             io_context, udp::endpoint(udp::v6(), opts.port))),
-        udp_stream(std::make_unique<UdpStreamBuffer>(udp_display_sock)),
+        udp_stream(std::make_unique<UdpStreamBuffer>(udp_display_sock, opts.display_address, io_context)),
         tcp_server_sock(std::make_shared<tcp::socket>(
             io_context, tcp::endpoint(tcp::v6(), opts.port))),
         tcp_stream(std::make_unique<TcpStreamBuffer>(tcp_server_sock)),
         name(opts.player_name) {
-    auto [display_host, display_port] =
-        extract_host_and_port(opts.display_address);
 
-    udp::resolver udp_resolver(io_context);
-    udp::endpoint display_endpoint = *udp_resolver.resolve(
-        display_host, display_port, resolver_base::numeric_service);
+
 
     auto [server_host, server_port] =
         extract_host_and_port(opts.server_address);
@@ -117,10 +118,10 @@ class Client {
 
     tcp::endpoint server_endpoint = *tcp_resolver.resolve(
         server_host, server_port, resolver_base::numeric_service);
+
     boost::asio::ip::tcp::no_delay option(true);
     tcp_server_sock->set_option(option);
 
-    udp_display_sock->connect(display_endpoint);
     tcp_server_sock->connect(server_endpoint);
     udp_start_receive();
     tcp_start_receive();

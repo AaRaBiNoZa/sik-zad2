@@ -36,6 +36,7 @@ class Join : public Sendable {
   explicit Join(ByteStream& stream) {
     stream >> name;
   };
+
   explicit Join(std::string name) : name(std::move(name)){};
 
   void serialize(ByteStream& os) override {
@@ -44,7 +45,7 @@ class Join : public Sendable {
 
   void say_hello() override {
     std::cerr << "I Am Join"
-              << " name: " << name;
+              << " name: " << name << std::endl;
   }
 
   uint8_t getId() override {
@@ -167,9 +168,9 @@ class Game : public DrawMessage {
   uint16_t turn{};
   std::map<PlayerId, Player> players;
   std::map<PlayerId, Position> player_positions;
-  std::vector<Position> blocks;
-  std::vector<Bomb> bombs;
-  std::vector<Position> explosions;
+  std::set<Position> blocks;
+  std::set<Bomb> bombs;
+  std::set<Position> explosions;
   std::map<PlayerId, Score> scores;
 
  public:
@@ -187,9 +188,9 @@ class Game : public DrawMessage {
     turn = c.turn;
     players = c.players;
     player_positions = c.positions;
-    blocks = std::vector<Position>(c.blocks.begin(), c.blocks.end());
+    blocks = c.blocks;
     for (auto [key, val] : c.bombs) {
-      bombs.push_back(val);
+      bombs.insert(val);
     }
     explosions = c.explosions;
     scores = c.scores;
@@ -207,9 +208,9 @@ class Game : public DrawMessage {
               << " game_length: " << this->game_length
               << " turn: " << this->turn << " players: " << this->players
               << " player_positions: " << this->player_positions
-              << " blocks: " << this->blocks << " bombs: " << this->bombs
-              << " explosions: " << this->explosions
-              << " scores: " << this->scores;
+              << " blocks: " ;//<< this->blocks << " bombs: " << this->bombs
+              //<< " explosions: " << this->explosions
+             // << " scores: " << this->scores;
   }
 
   uint8_t getId() override {
@@ -361,6 +362,7 @@ class AcceptedPlayer : public ServerMessage {
 
   bool updateClientState(ClientState& state_to_upd) override {
     state_to_upd.players.insert({id, player});
+    state_to_upd.scores.insert({id, 0});
 
     return true;
   }
@@ -462,7 +464,7 @@ class BombExploded : public Event {
   }
 
   bool updateClientState(ClientState& state_to_upd) override {
-    state_to_upd.explosions.push_back(state_to_upd.bombs[id].position);
+    state_to_upd.calculateExplosions(state_to_upd.bombs[id].position);
     state_to_upd.bombs.erase(id);
     for (auto& robotId : robots_destroyed) {
       state_to_upd.would_die.insert(robotId);
@@ -519,7 +521,11 @@ class BlockPlaced : public Event {
   }
 
   bool updateClientState(ClientState& state_to_upd) override {
-    state_to_upd.blocks.insert(position);
+    auto [it, bo] = state_to_upd.blocks.insert(position);
+    std::cerr << "BLOCK PLACED at: " << position <<"RES:" <<bo << '\n' << "ALL BLOCKS:";
+    for (auto block: state_to_upd.blocks) {
+      std::cerr << "BLOCK PLACED: " << block << '\n';
+    }
 
     return true;
   }
@@ -556,6 +562,9 @@ class Turn : public ServerMessage {
   bool updateClientState(ClientState& state_to_upd) override {
     state_to_upd.explosions.clear();
     state_to_upd.turn = turn;
+    for (auto& [id,bomb]: state_to_upd.bombs) {
+      bomb.timer--;
+    }
     for (auto& event : events) {
       event->updateClientState(state_to_upd);
     }
@@ -587,8 +596,7 @@ class GameEnded : public ServerMessage {
   }
 
   bool updateClientState(ClientState& state_to_upd) override {
-    state_to_upd.scores = scores;
-    state_to_upd.game_on = false;
+    state_to_upd.reset();
 
     return false;
   }

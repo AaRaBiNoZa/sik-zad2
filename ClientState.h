@@ -23,13 +23,13 @@ struct ClientCommandLineOpts {
 
   bool parse_command_line(int argc, char *argv[]) {
     try {
-      po::options_description desc("Allowed options");
+      po::options_description desc("Opcje programu:");
       desc.add_options()(
-          "display-address,d", po::value<std::string>(&display_address)->required(),
+          "gui-address,d", po::value<std::string>(&display_address)->required(),
           "<(nazwa hosta):(port) lub (IPv4):(port) lub (IPv6):(port)>")(
-          "help,h", "produce help message")("player-name,n",
-                                            po::value<std::string>(&player_name)->required())(
-          "port,p", po::value<uint16_t>(&port)->required())(
+          "help,h", "Wypisuje jak używać programu")("player-name,n",
+                                            po::value<std::string>(&player_name)->required(), "<String>")(
+          "port,p", po::value<uint16_t>(&port)->required(), "<u16>")(
           "server-address,s", po::value<std::string>(&server_address)->required(),
           "<(nazwa hosta):(port) lub (IPv4):(port) lub (IPv6):(port)>");
 
@@ -67,13 +67,49 @@ struct ClientState {
   std::map<PlayerId, Position> positions;
   std::set<Position> blocks;
   std::map<BombId, Bomb> bombs;
-  std::vector<Position> explosions;
+  std::set<Position> explosions;
   std::map<PlayerId, Score> scores;
   std::set<PlayerId> would_die;
   bool game_on = false;
 
   void addBomb(BombId id, Position pos) {
-    bombs[id] = {std::move(pos), bomb_timer};
+    bombs[id] = {pos, bomb_timer};
+  }
+
+  void calculateExplosions(Position explosion) {
+    explosions.insert(explosion);
+    for (int i = 1; i < explosion_radius && explosion.y + i < size_y; ++i) {
+      Position temp(explosion.x, explosion.y + i);
+      explosions.insert(temp);
+      if (blocks.contains(temp)) {
+        break;
+      }
+    }
+
+    for (int i = 1; i < explosion_radius && explosion.y - i >= 0; ++i) {
+      Position temp(explosion.x, explosion.y - i);
+      explosions.insert(temp);
+      if (blocks.contains(temp)) {
+        break;
+      }
+    }
+
+    for (int i = 1; i < explosion_radius && explosion.x + i < size_x; ++i) {
+      Position temp(explosion.x + i, explosion.y);
+      explosions.insert(temp);
+      if (blocks.contains(temp)) {
+        break;
+      }
+    }
+
+    for (int i = 1; i < explosion_radius && explosion.x - i >= size_x; ++i) {
+      Position temp(explosion.x - i, explosion.y);
+      explosions.insert(temp);
+      if (blocks.contains(temp)) {
+        break;
+      }
+    }
+
   }
 
   void reset() {
