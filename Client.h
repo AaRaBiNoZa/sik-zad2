@@ -1,7 +1,3 @@
-//
-// Created by ciriubuntu on 11.05.22.
-//
-
 #ifndef SIK_ZAD3_CLIENT_H
 #define SIK_ZAD3_CLIENT_H
 
@@ -16,6 +12,11 @@ using boost::asio::ip::resolver_base;
 using boost::asio::ip::tcp;
 using boost::asio::ip::udp;
 
+/**
+ * Class that handles basic Client functionalities.
+ * It asynchronously reads from two associated sockets and
+ * acts accordingly to the message.
+ */
 class Client {
  private:
   std::shared_ptr<udp::socket> udp_display_sock;
@@ -25,6 +26,9 @@ class Client {
   std::string name;
   ClientState aggregated_state;
 
+  /**
+   * Function that starts asynchronously listening for UDP messages.
+   */
   void udp_start_receive() {
     udp_display_sock->async_wait(
         udp::socket::wait_read,
@@ -32,9 +36,21 @@ class Client {
                     boost::asio::placeholders::error));
   }
 
+  /**
+   * Method for handling messages from a GUI.
+   * First check if boost didn't log any errors, then
+   * prepares an appropriate buffer wrapper and tries to deserialize
+   * a message.
+   * On success sends a matching message to the server.
+   * If an exception is thrown during any of the steps, it is caught
+   * here, it's message is written to cerr and sockets get closed.
+   * @param error any error logged by boost
+   */
   void display_msg_rcv_handler(const boost::system::error_code& error) {
     if (error) {
       std::cerr << "Boost error: " << error << std::endl;
+      udp_display_sock->close();
+      tcp_server_sock->close();
       exit(1);
     }
 
@@ -45,8 +61,7 @@ class Client {
           InputMessage::unserialize(udp_stream);
 
       udp_stream.endRec();
-      rec_message->say_hello();
-      std::cerr << std::endl;
+
       tcp_stream.reset();
       if (!aggregated_state.game_on) {
         Join(name).serialize(tcp_stream);
@@ -63,12 +78,24 @@ class Client {
     }
   }
 
+  /**
+   * Function that starts asynchronously listening for TCP messages.
+   */
   void tcp_start_receive() {
     tcp_server_sock->async_wait(tcp::socket::wait_read,
                                 boost::bind(&Client::tcp_msg_rcv_handler, this,
                                             boost::asio::placeholders::error));
   }
 
+  /**
+   * Method for handling messages from the server.
+   * First check if boost didn't log any errors, then
+   * prepares an appropriate buffer wrapper and tries to deserialize
+   * a message.
+   * After that, the message is used to update client state and an
+   * appropriate (if any) message to be sent to GUI is prepared and sent.
+   * @param error any error logged by boost
+   */
   void tcp_msg_rcv_handler(const boost::system::error_code& error) {
     if (error) {
       std::cerr << "Boost error: " << error << std::endl;
@@ -78,9 +105,6 @@ class Client {
       tcp_stream.reset();
       std::shared_ptr<ServerMessage> rec_message =
           ServerMessage::unserialize(tcp_stream);
-
-      rec_message->say_hello();
-      std::cerr << '\n';
 
       if (rec_message->updateClientState(aggregated_state)) {
         udp_stream.reset();
@@ -101,7 +125,14 @@ class Client {
   }
 
  public:
-  Client(boost::asio::io_context& io_context, ClientCommandLineOpts opts)
+  /**
+   * This constructor initializes all fields. To the tcp_stream we pass
+   * only a ready socket. It is possible, because tcp is connection based,
+   * we can prepare it here and ease the workload for the other class.
+   * For udp it's different since we are supposed to be able to read messages
+   * from any GUI - we can't connect it.
+   */
+  Client(boost::asio::io_context& io_context, const ClientCommandLineOpts& opts)
       : udp_display_sock(std::make_shared<udp::socket>(
             io_context, udp::endpoint(udp::v6(), opts.port))),
         udp_stream(std::make_unique<UdpStreamBuffer>(udp_display_sock, opts.display_address, io_context)),
@@ -121,8 +152,8 @@ class Client {
 
     boost::asio::ip::tcp::no_delay option(true);
     tcp_server_sock->set_option(option);
-
     tcp_server_sock->connect(server_endpoint);
+
     udp_start_receive();
     tcp_start_receive();
   };

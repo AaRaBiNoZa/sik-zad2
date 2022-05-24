@@ -1,7 +1,3 @@
-//
-// Created by ciriubuntu on 11.05.22.
-//
-
 #ifndef SIK_ZAD3_CLIENTSTATE_H
 #define SIK_ZAD3_CLIENTSTATE_H
 
@@ -14,7 +10,12 @@
 
 namespace po = boost::program_options;
 
-
+/**
+ * Struct created for the sole purpose of parsing and saving
+ * command line options.
+ * If help is used, all other options are optional (we won't run).
+ * If no help is detected, all of the other options are required.
+ */
 struct ClientCommandLineOpts {
   std::string display_address;
   std::string player_name;
@@ -54,6 +55,13 @@ struct ClientCommandLineOpts {
   }
 };
 
+/**
+ * Struct for storing ClientState.
+ * At all times there will only be one ClientState (for one Client).
+ * It will never be used polymorphically nor will it have subclasses.
+ * It's main function is to just store data, that's why I chose struct over
+ * class.
+ */
 struct ClientState {
   std::string server_name;
   uint8_t players_count;
@@ -72,12 +80,27 @@ struct ClientState {
   std::set<PlayerId> would_die;
   bool game_on = false;
 
+  /**
+   * Ease function to add new bomb (we have the bomb timer ready)
+   */
   void addBomb(BombId id, Position pos) {
     bombs[id] = {pos, bomb_timer};
   }
 
+  /**
+   * Function that calculates current round's explosions.
+   * It goes explosion_radius - 1 times to all 4 sides, unless it
+   * finds a block, then it will be the last explosion position in that
+   * direction.
+   * If a bomb exploded on a block, we only insert one explosion - on that
+   * blocks position.
+   */
   void calculateExplosions(Position explosion) {
     explosions.insert(explosion);
+    if (blocks.contains(explosion)) {
+      return;
+    }
+
     for (int i = 1; i < explosion_radius && explosion.y + i < size_y; ++i) {
       Position temp(explosion.x, explosion.y + i);
       explosions.insert(temp);
@@ -112,6 +135,9 @@ struct ClientState {
 
   }
 
+  /**
+   * Prepares the clientstate for a new game (on the same server).
+   */
   void reset() {
     players.clear();
     turn = 0;

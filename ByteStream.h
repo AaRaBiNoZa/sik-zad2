@@ -17,6 +17,12 @@
 
 #include "Buffer.h"
 
+/**
+ * It is a class that provides an easy interface for an associated buffer
+ * that is supposed to be receiving/sending messages.
+ * It stores its own local vector needed for single datatype read/writes from
+ * an associated buffer.
+ */
 class ByteStream {
  private:
   std::vector<uint8_t> data;
@@ -24,26 +30,51 @@ class ByteStream {
 
  public:
 
+  /**
+   * Since all read/write operations here are meant for single datatype,
+   * we can initialize the data vector with a size of max_single_datatype_size
+   * @param buff
+   */
   explicit ByteStream(std::unique_ptr<StreamBuffer> buff)
-      : data(257),
+      : data(max_single_datatype_size),
         buffer(std::move(buff)){};
 
+  /**
+   * used to prepare the underlying buffer to read/write
+   */
   void reset() {
     buffer->reset();
   }
 
+  /**
+   * If underlying system is a single message-based system, then
+   * this function reads the whole message to buffer's own buffer.
+   * Else UB.
+   */
   void get() {
     buffer->get();
   }
 
+  /**
+   * Does everything necessary after receiving/reading from underlying system
+   * (in this case it's a socket).
+   */
   void endRec() {
     buffer->endRec();
   }
 
+  /**
+   * Does everything necessary after writing to underlying system
+   * (in this case it's a socket).
+   */
   void endWrite() {
     buffer->send();
   }
 
+  /**
+   * Here are overloaded operators that provide an extremely easy interface
+   * to work with this object.
+   */
   ByteStream& operator<<(uint8_t x) {
     data[0] = x;
     buffer->writeNBytes(sizeof(x), data);
