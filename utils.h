@@ -1,9 +1,12 @@
 #ifndef SIK_ZAD3_UTILS_H
 #define SIK_ZAD3_UTILS_H
+
+#include <string>
+
 #include "ByteStream.h"
 
 /**
- * Smaller classes and using directives.
+ * Smaller utility classes and using directives.
  */
 
 using PlayerId = uint8_t;
@@ -49,7 +52,6 @@ class Position {
     return os;
   }
 
-
   bool operator<(const Position& pos2) const {
     if (x < pos2.x) {
       return true;
@@ -58,7 +60,6 @@ class Position {
     }
     return false;
   }
-
 };
 
 class Bomb {
@@ -85,7 +86,5 @@ class Bomb {
     return position < bomb2.position;
   }
 };
-
-
 
 #endif  // SIK_ZAD3_UTILS_H

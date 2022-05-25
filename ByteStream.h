@@ -1,21 +1,15 @@
-//
-// Created by Adam Al-Hosam on 05/05/2022.
-//
-
 #ifndef SIK_ZAD3_BYTESTREAM_H
 #define SIK_ZAD3_BYTESTREAM_H
 
 #include <netinet/in.h>
-
 #include <cstring>
-#include <map>
 #include <set>
-#include <memory>
-#include <ostream>
-#include <utility>
+#include <map>
 #include <vector>
+#include <memory>
 
 #include "Buffer.h"
+#include "common.h"
 
 /**
  * It is a class that provides an easy interface for an associated buffer
@@ -127,11 +121,11 @@ class ByteStream {
 
   ByteStream& operator>>(char& x) {
     buffer->getNBytes(sizeof(x), data);
-    x = data[0];
+    x = (char) data[0];
     return *this;
   }
   ByteStream& operator<<(char x) {
-    data[0] = x;
+    data[0] = (uint8_t) x;
     buffer->writeNBytes(sizeof(x), data);
 
     return *this;
@@ -145,10 +139,10 @@ class ByteStream {
     return *this;
   }
   ByteStream& operator<<(std::string s) {
-    uint8_t length = s.size();
+    auto length = (uint8_t) s.size();
     *this << length;
     std::memcpy(&data[0], s.data(), length);
-    buffer->writeNBytes(s.size(), data);
+    buffer->writeNBytes(length, data);
     return *this;
   }
 
@@ -157,16 +151,16 @@ class ByteStream {
     uint32_t len;
     *this >> len;
     x.resize(len);
-    for (int i = 0; i < len; ++i) {
+    for (size_t i = 0; i < len; ++i) {
       *this >> x[i];
     }
     return *this;
   }
   template <typename T>
   ByteStream& operator<<(std::vector<T> x) {
-    uint32_t len = x.size();
+    auto len = (uint32_t) x.size();
     *this << len;
-    for (int i = 0; i < len; ++i) {
+    for (size_t i = 0; i < len; ++i) {
       *this << x[i];
     }
     return *this;
@@ -177,7 +171,7 @@ class ByteStream {
     uint32_t len;
     *this >> len;
     T temp;
-    for (int i = 0; i < len; ++i) {
+    for (size_t i = 0; i < len; ++i) {
       *this >> temp;
       x.insert(temp);
     }
@@ -185,7 +179,7 @@ class ByteStream {
   }
   template <typename T>
   ByteStream& operator<<(std::set<T> x) {
-    uint32_t len = x.size();
+    auto len = (uint32_t) x.size();
     *this << len;
     for (auto element: x) {
       *this << element;
@@ -199,7 +193,7 @@ class ByteStream {
     *this >> len;
     x.clear();
     std::pair<T1, T2> temp_val;
-    for (int i = 0; i < len; ++i) {
+    for (size_t i = 0; i < len; ++i) {
       *this >> temp_val;
       x.insert(temp_val);
     }
@@ -207,7 +201,7 @@ class ByteStream {
   }
   template <typename T1, typename T2>
   ByteStream& operator<<(std::map<T1, T2> x) {
-    uint32_t len = x.size();
+    auto len = (uint32_t) x.size();
     *this << len;
     for (auto& it : x) {
       *this << it;

@@ -1,9 +1,10 @@
 #ifndef SIK_ZAD3_BUFFER_H
 #define SIK_ZAD3_BUFFER_H
 
+#include <boost/asio.hpp>
 #include <utility>
 #include <vector>
-#include <boost/asio.hpp>
+
 #include "common.h"
 
 using boost::asio::ip::resolver_base;
@@ -13,27 +14,27 @@ using boost::asio::ip::udp;
 /**
  * Basic exceptions, names are self-explanatory
  */
-class BufferException: public std::exception {};
+class BufferException : public std::exception {};
 
-class UdpOverflowException: public BufferException {
+class UdpOverflowException : public BufferException {
   [[nodiscard]] const char* what() const noexcept override {
     return "UDP buffer overflow";
   }
 };
 
-class MessageTooShortException: public BufferException {
+class MessageTooShortException : public BufferException {
   [[nodiscard]] const char* what() const noexcept override {
     return "Unserialize expected more";
   }
 };
 
-class MessageTooLongException: public BufferException {
+class MessageTooLongException : public BufferException {
   [[nodiscard]] const char* what() const noexcept override {
     return "Unserialize expected more";
   }
 };
 
-class ConnectionAborted: public BufferException {
+class ConnectionAborted : public BufferException {
   [[nodiscard]] const char* what() const noexcept override {
     return "Connection closed by the peer";
   }
@@ -50,12 +51,13 @@ class ConnectionAborted: public BufferException {
 class StreamBuffer {
  private:
   std::vector<uint8_t> buff;
+
  public:
   virtual void getNBytes(uint8_t n, std::vector<uint8_t>& data) = 0;
   virtual void endRec() = 0;  // used for cleaning after any type of read
   virtual void reset() = 0;   // preparation for read/send
   virtual void send() = 0;
-  virtual void get() = 0;     // for udp only - reads a full message
+  virtual void get() = 0;  // for udp only - reads a full message
   virtual void writeNBytes(uint8_t n, std::vector<uint8_t> buff) = 0;
   virtual ~StreamBuffer() = default;
 };
@@ -83,14 +85,13 @@ class TcpStreamBuffer : public StreamBuffer {
       sock->send(boost::asio::buffer(buff, ptr_to_act_el));
       ptr_to_act_el = 0;
     }
-
   }
 
   void endRec() override {
-     }
+  }
 
   void get() override {
-     }
+  }
 
   void reset() override {
     ptr_to_act_el = 0;
@@ -104,7 +105,6 @@ class TcpStreamBuffer : public StreamBuffer {
   }
 
   ~TcpStreamBuffer() override = default;
-
 };
 
 class UdpStreamBuffer : public StreamBuffer {
@@ -118,16 +118,16 @@ class UdpStreamBuffer : public StreamBuffer {
   size_t len{};
 
  public:
-  explicit UdpStreamBuffer(std::shared_ptr<boost::asio::ip::udp::socket>  sock, const std::string& remote_address, boost::asio::io_context& io_context)
+  explicit UdpStreamBuffer(std::shared_ptr<boost::asio::ip::udp::socket> sock,
+                           const std::string& remote_address,
+                           boost::asio::io_context& io_context)
       : sock(std::move(sock)), buff(max_data_size) {
-
-    auto [remote_host, remote_port] =
-        extract_host_and_port(remote_address);
+    auto [remote_host, remote_port] = extract_host_and_port(remote_address);
     udp::resolver udp_resolver(io_context);
-    remote_endpoint = *udp_resolver.resolve(udp::v6(),
-        remote_host, remote_port, resolver_base::numeric_service | resolver_base::v4_mapped | resolver_base::all_matching);
-
-
+    remote_endpoint = *udp_resolver.resolve(udp::v6(), remote_host, remote_port,
+                                            resolver_base::numeric_service |
+                                                resolver_base::v4_mapped |
+                                                resolver_base::all_matching);
   };
   void reset() override {
     ptr_to_act_el = 0;

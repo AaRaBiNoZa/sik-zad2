@@ -1,12 +1,15 @@
 #ifndef SIK_ZAD3_CLIENT_H
 #define SIK_ZAD3_CLIENT_H
 
-#include <boost/bind/bind.hpp>
 #include <boost/asio.hpp>
+#include <boost/bind/bind.hpp>
+#include <memory>
 
-#include "ClientSerialization.h"
+#include "Buffer.h"
 #include "ByteStream.h"
+#include "ClientSerialization.h"
 #include "ClientState.h"
+#include "common.h"
 
 using boost::asio::ip::resolver_base;
 using boost::asio::ip::tcp;
@@ -20,8 +23,8 @@ using boost::asio::ip::udp;
 class Client {
  private:
   std::shared_ptr<udp::socket> udp_display_sock;
-  std::shared_ptr<tcp::socket> tcp_server_sock;
   ByteStream udp_stream;
+  std::shared_ptr<tcp::socket> tcp_server_sock;
   ByteStream tcp_stream;
   std::string name;
   ClientState aggregated_state;
@@ -57,10 +60,16 @@ class Client {
     try {
       udp_stream.get();
       udp_stream.reset();
-      std::shared_ptr<InputMessage> rec_message =
-          InputMessage::unserialize(udp_stream);
+      std::shared_ptr<InputMessage> rec_message;
 
-      udp_stream.endRec();
+      /* to ignore invalid GUI messages */
+      try {
+        rec_message = InputMessage::unserialize(udp_stream);
+        udp_stream.endRec();
+      } catch (std::exception& e) {
+        udp_start_receive();
+        return;
+      }
 
       tcp_stream.reset();
       if (!aggregated_state.game_on) {
@@ -115,6 +124,7 @@ class Client {
         }
         udp_stream.endWrite();
       }
+
       tcp_start_receive();
     } catch (std::exception& e) {
       std::cerr << e.what() << std::endl;
@@ -135,27 +145,29 @@ class Client {
   Client(boost::asio::io_context& io_context, const ClientCommandLineOpts& opts)
       : udp_display_sock(std::make_shared<udp::socket>(
             io_context, udp::endpoint(udp::v6(), opts.port))),
-        udp_stream(std::make_unique<UdpStreamBuffer>(udp_display_sock, opts.display_address, io_context)),
+        udp_stream(std::make_unique<UdpStreamBuffer>(
+            udp_display_sock, opts.display_address, io_context)),
         tcp_server_sock(std::make_shared<tcp::socket>(
             io_context, tcp::endpoint(tcp::v6(), opts.port))),
         tcp_stream(std::make_unique<TcpStreamBuffer>(tcp_server_sock)),
         name(opts.player_name) {
-
-
-
+    // finding server endpoint
     auto [server_host, server_port] =
         extract_host_and_port(opts.server_address);
     tcp::resolver tcp_resolver(io_context);
 
-    tcp::endpoint server_endpoint = *tcp_resolver.resolve(tcp::v6(),
-        server_host, server_port, resolver_base::numeric_service | resolver_base::v4_mapped | resolver_base::all_matching);
+    tcp::endpoint server_endpoint = *tcp_resolver.resolve(
+        tcp::v6(), server_host, server_port,
+        resolver_base::numeric_service | resolver_base::v4_mapped |
+            resolver_base::all_matching);
 
     boost::asio::ip::tcp::no_delay option(true);
     tcp_server_sock->set_option(option);
+
     tcp_server_sock->connect(server_endpoint);
 
-    udp_start_receive();
     tcp_start_receive();
+    udp_start_receive();
   };
 };
 

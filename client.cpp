@@ -1,8 +1,11 @@
+#include "Client.h"
+
+#include <boost/asio.hpp>
 #include <iostream>
 #include <string>
 
-#include "Client.h"
-#include "ByteStream.h"
+#include "ClientSerialization.h"
+#include "ClientState.h"
 
 int main(int argc, char *argv[]) {
   ClientCommandLineOpts opts;
@@ -19,8 +22,6 @@ int main(int argc, char *argv[]) {
     std::cerr << e.what() << std::endl;
     return 1;
   }
-
-
 
   return 0;
 }

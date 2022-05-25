@@ -1,11 +1,12 @@
 #ifndef SIK_ZAD3_CLIENTSTATE_H
 #define SIK_ZAD3_CLIENTSTATE_H
 
-#include <string>
+#include <boost/program_options.hpp>
+#include <iostream>
 #include <map>
 #include <set>
-#include <vector>
-#include <boost/program_options.hpp>
+#include <string>
+
 #include "utils.h"
 
 namespace po = boost::program_options;
@@ -25,13 +26,20 @@ struct ClientCommandLineOpts {
   bool parse_command_line(int argc, char *argv[]) {
     try {
       po::options_description desc("Opcje programu:");
-      desc.add_options()(
-          "gui-address,d", po::value<std::string>(&display_address)->required(),
-          "<(nazwa hosta):(port) lub (IPv4):(port) lub (IPv6):(port)>")(
-          "help,h", "Wypisuje jak używać programu")("player-name,n",
-                                            po::value<std::string>(&player_name)->required(), "<String>")(
-          "port,p", po::value<uint16_t>(&port)->required(), "<u16>")(
-          "server-address,s", po::value<std::string>(&server_address)->required(),
+      desc.add_options()
+          ("gui-address,d",
+           po::value<std::string>(&display_address)->required(),
+          "<(nazwa hosta):(port) lub (IPv4):(port) lub (IPv6):(port)>")
+          ("help,h",
+           "Wypisuje jak używać programu")
+          ("player-name,n",
+          po::value<std::string>(&player_name)->required(),
+           "<String>")
+          ("port,p",
+          po::value<uint16_t>(&port)->required(),
+          "<u16>")
+          ("server-address,s",
+          po::value<std::string>(&server_address)->required(),
           "<(nazwa hosta):(port) lub (IPv4):(port) lub (IPv6):(port)>");
 
       po::variables_map vm;
@@ -78,6 +86,8 @@ struct ClientState {
   std::set<Position> explosions;
   std::map<PlayerId, Score> scores;
   std::set<PlayerId> would_die;
+  std::set<Position> blocks_to_destroy;
+
   bool game_on = false;
 
   /**
@@ -101,7 +111,8 @@ struct ClientState {
       return;
     }
 
-    for (int i = 1; i < explosion_radius && explosion.y + i < size_y; ++i) {
+    for (uint16_t i = 1; i < explosion_radius + 1 && explosion.y + i < size_y;
+         ++i) {
       Position temp(explosion.x, explosion.y + i);
       explosions.insert(temp);
       if (blocks.contains(temp)) {
@@ -109,7 +120,8 @@ struct ClientState {
       }
     }
 
-    for (int i = 1; i < explosion_radius && explosion.y - i >= 0; ++i) {
+    for (uint16_t i = 1; i < explosion_radius + 1 && explosion.y - i >= 0;
+         ++i) {
       Position temp(explosion.x, explosion.y - i);
       explosions.insert(temp);
       if (blocks.contains(temp)) {
@@ -117,7 +129,8 @@ struct ClientState {
       }
     }
 
-    for (int i = 1; i < explosion_radius && explosion.x + i < size_x; ++i) {
+    for (uint16_t i = 1; i < explosion_radius + 1 && explosion.x + i < size_x;
+         ++i) {
       Position temp(explosion.x + i, explosion.y);
       explosions.insert(temp);
       if (blocks.contains(temp)) {
@@ -125,14 +138,14 @@ struct ClientState {
       }
     }
 
-    for (int i = 1; i < explosion_radius && explosion.x - i >= size_x; ++i) {
+    for (uint16_t i = 1; i < explosion_radius + 1 && explosion.x - i >= 0;
+         ++i) {
       Position temp(explosion.x - i, explosion.y);
       explosions.insert(temp);
       if (blocks.contains(temp)) {
         break;
       }
     }
-
   }
 
   /**
@@ -150,6 +163,5 @@ struct ClientState {
     game_on = false;
   }
 };
-
 
 #endif  // SIK_ZAD3_CLIENTSTATE_H

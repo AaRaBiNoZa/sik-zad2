@@ -3,17 +3,16 @@ set(CMAKE_CXX_STANDARD 20)
 cmake_minimum_required(VERSION 3.18)
 project(sik_zad3)
 
-SET(CMAKE_CXX_FLAGS "-std=c++20 -pthread")
+SET(CMAKE_CXX_FLAGS "-std=gnu++20 -Wall -Wextra -Wconversion -Werror -O2 -pthread")
 
 set(Boost_USE_STATIC_LIBS OFF)
 set(Boost_USE_MULTITHREADED ON)
 set(Boost_USE_STATIC_RUNTIME OFF)
 
-set(BOOST_ROOT ~/boost_1_74_0/boost_root)
 find_package(Boost 1.74.0 COMPONENTS program_options)
 
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
-    add_executable(sik-zad3-client client.cpp common.h ByteStream.h ServerState.h Client.h ClientState.h Buffer.h utils.h ClientSerialization.h)
-    target_link_libraries(sik-zad3-client ${Boost_LIBRARIES})
+    add_executable(robots-client client.cpp Client.h ClientSerialization.h ByteStream.h ClientState.h Buffer.h common.h   utils.h )
+    target_link_libraries(robots-client ${Boost_LIBRARIES})
 endif()

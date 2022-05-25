@@ -1,7 +1,10 @@
 #ifndef SIK_ZAD3_CLIENTSERIALIZATION_H
 #define SIK_ZAD3_CLIENTSERIALIZATION_H
 
-#include <iostream>
+#include <map>
+#include <memory>
+#include <set>
+#include <vector>
 
 #include "ByteStream.h"
 #include "ClientState.h"
@@ -37,6 +40,7 @@ class Sendable : public Message {
 
  public:
   virtual void serialize(ByteStream& os) = 0;
+  virtual ~Sendable() = default;
 };
 
 class Join : public Sendable {
@@ -48,14 +52,6 @@ class Join : public Sendable {
   }
 
  public:
-  /**
-   * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
-   */
-  explicit Join(ByteStream& stream) {
-    stream >> name;
-  };
-
   explicit Join(std::string name) : name(std::move(name)){};
 
   void serialize(ByteStream& os) override {
@@ -111,7 +107,7 @@ class PlaceBomb : public InputMessage {
    * Constructor that creates the object from a specified bytesream
    * (unserializes the message on the go)
    */
-  explicit PlaceBomb(ByteStream& rest){};
+  explicit PlaceBomb([[maybe_unused]] ByteStream& rest){};
 
   void serialize(ByteStream& os) override {
     os << getId();
@@ -133,7 +129,7 @@ class PlaceBlock : public InputMessage {
    * Constructor that creates the object from a specified bytesream
    * (unserializes the message on the go)
    */
-  explicit PlaceBlock(ByteStream& rest){};
+  explicit PlaceBlock([[maybe_unused]] ByteStream& rest){};
 
   void serialize(ByteStream& os) override {
     os << getId();
@@ -178,7 +174,7 @@ class Game : public DrawMessage {
   std::map<PlayerId, Player> players;
   std::map<PlayerId, Position> player_positions;
   std::set<Position> blocks;
-  std::set<Bomb> bombs;
+  std::vector<Bomb> bombs;
   std::set<Position> explosions;
   std::map<PlayerId, Score> scores;
 
@@ -188,15 +184,6 @@ class Game : public DrawMessage {
 
  public:
   Game() = default;
-
-  /**
-   * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
-   */
-  explicit Game(ByteStream& stream) {
-    stream >> server_name >> size_x >> size_y >> game_length >> turn >>
-        players >> player_positions >> blocks >> bombs >> explosions >> scores;
-  };
 
   explicit Game(const ClientState& c) {
     server_name = c.server_name;
@@ -208,7 +195,7 @@ class Game : public DrawMessage {
     player_positions = c.positions;
     blocks = c.blocks;
     for (auto [key, val] : c.bombs) {
-      bombs.insert(val);
+      bombs.push_back(val);
     }
     explosions = c.explosions;
     scores = c.scores;
@@ -249,15 +236,6 @@ class Lobby : public DrawMessage {
     players = c.players;
   };
 
-  /**
-   * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
-   */
-  explicit Lobby(ByteStream& stream) {
-    stream >> server_name >> players_count >> size_x >> size_y >> game_length >>
-        explosion_radius >> bomb_timer >> players;
-  }
-
   void serialize(ByteStream& os) override {
     os << (uint8_t)0 << server_name << players_count << size_x << size_y
        << game_length << explosion_radius << bomb_timer << players;
@@ -284,6 +262,9 @@ class ServerMessage : public Message {
     return unserialize(rest);
   }
 
+  /**
+   * True means that state has changed (we should send message to GUI)
+   */
   virtual bool updateClientState(ClientState& state_to_upd) = 0;
 
   static std::shared_ptr<ServerMessage> unserialize(ByteStream& istr) {
@@ -294,6 +275,8 @@ class ServerMessage : public Message {
     }
     return server_message_map()[c](istr);
   }
+
+  virtual ~ServerMessage() = default;
 };
 
 class Hello : public ServerMessage {
@@ -329,7 +312,7 @@ class Hello : public ServerMessage {
     state_to_upd.explosion_radius = explosion_radius;
     state_to_upd.bomb_timer = bomb_timer;
 
-    return false;
+    return true;
   }
 };
 
@@ -379,6 +362,9 @@ class GameStarted : public ServerMessage {
   bool updateClientState(ClientState& state_to_upd) override {
     state_to_upd.game_on = true;
     state_to_upd.players = players;
+    for (auto& k : players) {
+      state_to_upd.scores[k.first] = 0;
+    }
 
     return false;
   }
@@ -464,7 +450,7 @@ class BombExploded : public Event {
       state_to_upd.would_die.insert(robotId);
     }
     for (auto const& block : blocks_destroyed) {
-      state_to_upd.blocks.erase(block);
+      state_to_upd.blocks_to_destroy.insert(block);
     }
 
     return true;
@@ -518,7 +504,7 @@ class BlockPlaced : public Event {
   explicit BlockPlaced(Position pos) : position(pos){};
 
   bool updateClientState(ClientState& state_to_upd) override {
-    auto [it, bo] = state_to_upd.blocks.insert(position);
+    state_to_upd.blocks.insert(position);
 
     return true;
   }
@@ -543,14 +529,16 @@ class Turn : public ServerMessage {
     uint32_t len;
     stream >> len;
     events.resize(len);
-    for (int i = 0; i < len; ++i) {
+    for (size_t i = 0; i < len; ++i) {
       events[i] = Event::create(stream);
     }
   };
 
-
   bool updateClientState(ClientState& state_to_upd) override {
     state_to_upd.explosions.clear();
+    state_to_upd.blocks_to_destroy.clear();
+    state_to_upd.would_die.clear();
+
     state_to_upd.turn = turn;
     for (auto& [id, bomb] : state_to_upd.bombs) {
       bomb.timer--;
@@ -561,7 +549,9 @@ class Turn : public ServerMessage {
     for (auto id : state_to_upd.would_die) {
       state_to_upd.scores[id]++;
     }
-    state_to_upd.would_die.clear();
+    for (auto destroyed : state_to_upd.blocks_to_destroy) {
+      state_to_upd.blocks.erase(destroyed);
+    }
     return true;
   }
 };
@@ -586,7 +576,7 @@ class GameEnded : public ServerMessage {
   bool updateClientState(ClientState& state_to_upd) override {
     state_to_upd.reset();
 
-    return false;
+    return true;
   }
 };
 
