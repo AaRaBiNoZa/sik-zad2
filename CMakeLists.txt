@@ -1,3 +1,6 @@
+set(CMAKE_C_COMPILER /opt/gcc-11.2/bin/gcc-11.2)
+set(CMAKE_CXX_COMPILER /opt/gcc-11.2/bin/g++-11.2)
+
 set(CMAKE_CXX_STANDARD 20)
 
 cmake_minimum_required(VERSION 3.18)
