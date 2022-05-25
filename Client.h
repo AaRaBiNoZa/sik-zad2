@@ -147,8 +147,10 @@ class Client {
         extract_host_and_port(opts.server_address);
     tcp::resolver tcp_resolver(io_context);
 
-    tcp::endpoint server_endpoint = *tcp_resolver.resolve(
-        server_host, server_port, resolver_base::numeric_service);
+    tcp::endpoint server_endpoint = *tcp_resolver.resolve(tcp::v6(),
+        server_host, server_port, resolver_base::numeric_service | resolver_base::v4_mapped | resolver_base::all_matching);
+
+    std::cerr << server_endpoint;
 
     boost::asio::ip::tcp::no_delay option(true);
     tcp_server_sock->set_option(option);

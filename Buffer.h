@@ -124,8 +124,8 @@ class UdpStreamBuffer : public StreamBuffer {
     auto [remote_host, remote_port] =
         extract_host_and_port(remote_address);
     udp::resolver udp_resolver(io_context);
-    remote_endpoint = *udp_resolver.resolve(
-        remote_host, remote_port, resolver_base::numeric_service);
+    remote_endpoint = *udp_resolver.resolve(udp::v6(),
+        remote_host, remote_port, resolver_base::numeric_service | resolver_base::v4_mapped | resolver_base::all_matching);
 
 
   };
