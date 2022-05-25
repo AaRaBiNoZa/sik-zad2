@@ -1,7 +1,7 @@
 set(CMAKE_CXX_STANDARD 20)
 
 cmake_minimum_required(VERSION 3.18)
-project(sik_zad3)
+project(sik_zad2)
 
 SET(CMAKE_CXX_FLAGS "-std=gnu++20 -Wall -Wextra -Wconversion -Werror -O2 -pthread")
 
