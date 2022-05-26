@@ -107,10 +107,17 @@ class TcpStreamBuffer : public StreamBuffer {
   ~TcpStreamBuffer() override = default;
 };
 
+/**
+ * I need to create two sockets here - one that I can connect, for sending
+ * ( so when I send and the receiver is not receiving, I can get the info )
+ * And another for receiving, since I should be prepared to receive
+ * messages from any possible address.
+ */
 class UdpStreamBuffer : public StreamBuffer {
  private:
   static const uint16_t max_data_size = 65507;
-  std::shared_ptr<boost::asio::ip::udp::socket> sock;
+  std::shared_ptr<boost::asio::ip::udp::socket> rec_sock;
+  boost::asio::ip::udp::socket send_sock;
   boost::asio::ip::udp::endpoint remote_endpoint;
   std::vector<uint8_t> buff;
   size_t ptr_to_act_el{};
@@ -121,13 +128,17 @@ class UdpStreamBuffer : public StreamBuffer {
   explicit UdpStreamBuffer(std::shared_ptr<boost::asio::ip::udp::socket> sock,
                            const std::string& remote_address,
                            boost::asio::io_context& io_context)
-      : sock(std::move(sock)), buff(max_data_size) {
+      : rec_sock(std::move(sock)),
+        send_sock(io_context, udp::endpoint(udp::v6(), 0)),
+        buff(max_data_size) {
     auto [remote_host, remote_port] = extract_host_and_port(remote_address);
     udp::resolver udp_resolver(io_context);
     remote_endpoint = *udp_resolver.resolve(udp::v6(), remote_host, remote_port,
                                             resolver_base::numeric_service |
                                                 resolver_base::v4_mapped |
                                                 resolver_base::all_matching);
+
+    send_sock.connect(remote_endpoint);
   };
   void reset() override {
     ptr_to_act_el = 0;
@@ -135,7 +146,7 @@ class UdpStreamBuffer : public StreamBuffer {
 
   void get() override {
     boost::asio::ip::udp::endpoint dummy;
-    len = sock->receive_from(boost::asio::buffer(buff), dummy);
+    len = rec_sock->receive_from(boost::asio::buffer(buff), dummy);
   }
 
   void getNBytes(uint8_t n, std::vector<uint8_t>& data) override {
@@ -165,7 +176,7 @@ class UdpStreamBuffer : public StreamBuffer {
   }
   void send() override {
     if (ptr_to_act_el != 0) {
-      sock->send_to(boost::asio::buffer(buff, ptr_to_act_el), remote_endpoint);
+      send_sock.send(boost::asio::buffer(buff, ptr_to_act_el));
     }
   }
 
