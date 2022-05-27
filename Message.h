@@ -3,11 +3,13 @@
 
 #include <map>
 #include <memory>
+#include <ostream>
 #include <set>
 #include <vector>
 
 #include "ByteStream.h"
 #include "ClientState.h"
+#include "ServerState.h"
 #include "utils.h"
 
 /**
@@ -28,7 +30,13 @@ class InvalidMessageException : public std::exception {
 /**
  * May be needed in the future for setting an interface.
  */
-class Message {};
+class Message {
+ public:
+  virtual void say_hello() {
+    std::cerr << "Hello i am Message";
+  }
+  virtual ~Message() = default;
+};
 
 /**
  * Represents a message type that should be able to be serialized.
@@ -56,6 +64,10 @@ class Join : public Sendable {
 
   void serialize(ByteStream& os) override {
     os << getId() << name;
+  }
+
+  void say_hello() override {
+    std::cerr << "Hello i am Join " << name;
   }
 };
 
@@ -112,6 +124,10 @@ class PlaceBomb : public InputMessage {
   void serialize(ByteStream& os) override {
     os << getId();
   }
+
+  void say_hello() override {
+    std::cerr << "Hello i am Placebomb";
+  }
 };
 
 class PlaceBlock : public InputMessage {
@@ -133,6 +149,10 @@ class PlaceBlock : public InputMessage {
 
   void serialize(ByteStream& os) override {
     os << getId();
+  }
+
+  void say_hello() override {
+    std::cerr << "Hello i am Placeblock";
   }
 };
 
@@ -159,6 +179,10 @@ class Move : public InputMessage {
 
   void serialize(ByteStream& os) override {
     os << getId() << direction;
+  }
+
+  void say_hello() override {
+    std::cerr << "Hello i am Move dir:" << (uint16_t) direction;
   }
 };
 
@@ -206,6 +230,16 @@ class Game : public DrawMessage {
        << players << player_positions << blocks << bombs << explosions
        << scores;
   }
+
+  void say_hello() override {
+    std::cerr << "Hello i am Game: \n server_name:" << server_name
+              << "\nsize_x, size_y" << size_x << ", " << size_y
+              << "\ngame_length" << game_length << "\nturn:" << turn
+              << "\nplayers" << players << "\nplayer_positions"
+              << player_positions << "\nblocks: " << blocks
+              << "\nbombs: " << bombs << "\nexplosions" << explosions
+              << "\nscores: " << scores;
+  }
 };
 
 class Lobby : public DrawMessage {
@@ -240,9 +274,19 @@ class Lobby : public DrawMessage {
     os << (uint8_t)0 << server_name << players_count << size_x << size_y
        << game_length << explosion_radius << bomb_timer << players;
   }
+
+  void say_hello() override {
+    std::cerr << "Hello i am lobby:"
+       << " \nserver_name: " << server_name
+       << " \nplayers_count: " << players_count
+       << " \nsize_x: " << size_x << " \nsize_y: " << size_y
+       << " \ngame_length: " << game_length
+       << " \nexplosion_radius: " << explosion_radius
+       << " \nbomb_timer: " << bomb_timer << " \nplayers: " << players;
+  }
 };
 
-class ServerMessage : public Message {
+class ServerMessage : public Sendable {
  public:
   typedef std::shared_ptr<ServerMessage> (*ServerMessageFactory)(ByteStream&);
 
@@ -256,10 +300,6 @@ class ServerMessage : public Message {
    */
   static void register_to_map(uint8_t key, ServerMessageFactory val) {
     server_message_map().insert({key, val});
-  }
-
-  static std::shared_ptr<ServerMessage> create(ByteStream& rest) {
-    return unserialize(rest);
   }
 
   /**
@@ -289,6 +329,10 @@ class Hello : public ServerMessage {
   uint16_t explosion_radius{};
   uint16_t bomb_timer{};
 
+  uint8_t getId() override {
+    return 0;
+  }
+
  public:
   static std::shared_ptr<ServerMessage> create(ByteStream& rest) {
     return std::make_shared<Hello>(rest);
@@ -314,12 +358,30 @@ class Hello : public ServerMessage {
 
     return true;
   }
+
+  void serialize(ByteStream &os) override {
+    os << server_name << players_count << size_x << size_y << game_length << explosion_radius << bomb_timer;
+  }
+
+  void say_hello() override {
+    std::cerr << "Hello i am Hello: "
+       << " \nserver_name: " <<server_name
+       << " \nplayers_count: " << players_count
+       << " \nsize_x: " << size_x << " \nsize_y: " << size_y
+       << " \ngame_length: " << game_length
+       << " \nexplosion_radius: " <<explosion_radius
+       << " \nbomb_timer: " << bomb_timer;
+  }
 };
 
 class AcceptedPlayer : public ServerMessage {
  private:
   PlayerId id{};
   Player player;
+
+  uint8_t getId() override {
+    return 1;
+  }
 
  public:
   static std::shared_ptr<ServerMessage> create(ByteStream& rest) {
@@ -340,12 +402,25 @@ class AcceptedPlayer : public ServerMessage {
 
     return true;
   }
+
+  void serialize(ByteStream &os) override {
+    os << getId() << id << player;
+  }
+
+  void say_hello() override {
+    std::cerr << "Hello i am AccPlayer: "<<  " \nid: " << id
+       << " \nplayer: " << player;
+  }
 };
 
 class GameStarted : public ServerMessage {
  private:
   std::map<PlayerId, Player> players;
 
+
+  uint8_t getId() override {
+    return 2;
+  }
  public:
   static std::shared_ptr<ServerMessage> create(ByteStream& rest) {
     return std::make_shared<GameStarted>(rest);
@@ -367,6 +442,14 @@ class GameStarted : public ServerMessage {
     }
 
     return false;
+  }
+
+  void serialize(ByteStream &os) override {
+    os << getId() << players;
+  }
+
+  void say_hello() override {
+    std::cerr << "Hello i am GStarted: "<<  "\n players: " << players;
   }
 };
 
@@ -402,6 +485,10 @@ class BombPlaced : public Event {
   BombId id{};
   Position position;
 
+  uint8_t getId() override {
+    return 0;
+  }
+
  public:
   static std::shared_ptr<Event> create(ByteStream& rest) {
     return std::make_shared<BombPlaced>(rest);
@@ -422,6 +509,15 @@ class BombPlaced : public Event {
 
     return true;
   }
+
+  void serialize(ByteStream& os) override {
+    os << getId() << id << position;
+  }
+
+  void say_hello() override {
+    std::cerr << "Hello i am BombPlaced: "<< " \nid: " << id
+       << " \nposition: " << position;
+  }
 };
 
 class BombExploded : public Event {
@@ -430,6 +526,9 @@ class BombExploded : public Event {
   std::vector<PlayerId> robots_destroyed;
   std::vector<Position> blocks_destroyed;
 
+  uint8_t getId() override {
+    return 1;
+  }
  public:
   static std::shared_ptr<Event> create(ByteStream& rest) {
     return std::make_shared<BombExploded>(rest);
@@ -455,6 +554,16 @@ class BombExploded : public Event {
 
     return true;
   }
+
+  void serialize(ByteStream& os) override {
+    os << getId() << id << robots_destroyed << blocks_destroyed;
+  }
+
+  void say_hello() override {
+    std::cerr << "Hello i am BombExploded: "<<  " \nid: " << id
+       << " \nrobots_destroyed: " << robots_destroyed
+       << " \nblocks_destroyed: " << blocks_destroyed;
+  }
 };
 
 class PlayerMoved : public Event {
@@ -462,6 +571,9 @@ class PlayerMoved : public Event {
   PlayerId id{};
   Position position;
 
+  uint8_t getId() override {
+    return 2;
+  }
  public:
   static std::shared_ptr<Event> create(ByteStream& rest) {
     return std::make_shared<PlayerMoved>(rest);
@@ -482,12 +594,24 @@ class PlayerMoved : public Event {
 
     return true;
   }
+
+  void serialize(ByteStream& os) override {
+    os << getId() << id << position;
+  }
+
+  void say_hello() override {
+    std::cerr<< "Hello i am PlayerMoved: " << " id: " <<id
+       << " position: " << position;
+  }
 };
 
 class BlockPlaced : public Event {
  private:
   Position position;
 
+  uint8_t getId() override {
+    return 3;
+  }
  public:
   static std::shared_ptr<Event> create(ByteStream& rest) {
     return std::make_shared<BlockPlaced>(rest);
@@ -508,13 +632,24 @@ class BlockPlaced : public Event {
 
     return true;
   }
+
+  void serialize(ByteStream& os) override {
+    os << getId() << position;
+  }
+
+  void say_hello() override {
+    std::cerr << "Block placed:"
+              << " position: " << position;
+  }
 };
 
 class Turn : public ServerMessage {
  private:
   uint16_t turn{};
   std::vector<std::shared_ptr<Event>> events;
-
+  uint8_t getId() override {
+    return 3;
+  }
  public:
   static std::shared_ptr<ServerMessage> create(ByteStream& rest) {
     return std::make_shared<Turn>(rest);
@@ -554,12 +689,30 @@ class Turn : public ServerMessage {
     }
     return true;
   }
+
+  void serialize(ByteStream& os) override {
+    os << getId() << turn << (uint32_t) events.size();
+    for (const auto& event: events) {
+      event->serialize(os);
+    }
+  }
+
+  void say_hello() override {
+    std::cerr << "TURN\n";
+    for (const auto& k: events) {
+      k->say_hello();
+      std::cerr << "\n";
+    }
+  }
 };
 
 class GameEnded : public ServerMessage {
  private:
   std::map<PlayerId, Score> scores;
 
+  uint8_t getId() override {
+    return 4;
+  }
  public:
   static std::shared_ptr<ServerMessage> create(ByteStream& rest) {
     return std::make_shared<GameEnded>(rest);
@@ -577,6 +730,153 @@ class GameEnded : public ServerMessage {
     state_to_upd.reset();
 
     return true;
+  }
+
+  void serialize(ByteStream& os) override {
+    os << getId() << scores;
+  }
+
+  void say_hello() override {
+    std::cerr << "Game ended " << scores;
+  }
+};
+
+/* May be changed so it is sendable instead of input message */
+class ClientMessage : public Message {
+ public:
+  typedef std::shared_ptr<ClientMessage> (*ClientMessageFactory)(ByteStream&);
+
+  static std::map<uint8_t, ClientMessageFactory>& client_message_map() {
+    static auto* ans = new std::map<uint8_t, ClientMessageFactory>();
+    return *ans;
+  };
+
+  /**
+   * used to populate function ptr map
+   */
+  static void register_to_map(uint8_t key, ClientMessageFactory val) {
+    client_message_map().insert({key, val});
+  }
+
+
+  virtual void updateServerState(ServerState& state_to_upd) = 0;
+  virtual bool TryJoin([[maybe_unused]] ServerState& state_to_upd,[[maybe_unused]] std::optional<PlayerId> &player_id) {
+    return false;
+  }
+
+  static std::shared_ptr<ClientMessage> unserialize(ByteStream& istr) {
+    uint8_t c;
+    istr >> c;
+    if (!client_message_map().contains(c)) {
+      throw InvalidMessageException();
+    }
+    return client_message_map()[c](istr);
+  }
+
+  virtual ~ClientMessage() = default;
+};
+/* **************************************** */
+class ClientJoin : public ClientMessage {
+ private:
+  std::string name;
+
+ public:
+  static std::shared_ptr<ClientMessage> create(ByteStream& rest) {
+    return std::make_shared<ClientJoin>(rest);
+  }
+
+  /**
+   * Constructor that creates the object from a specified bytesream
+   * (unserializes the message on the go)
+   */
+  explicit ClientJoin(ByteStream& stream) {
+    stream >> name;
+  };
+
+  void updateServerState(ServerState& state_to_upd) override {
+
+    return;
+  }
+
+  bool TryJoin(ServerState& state_to_upd, std::optional<PlayerId> &player_id) override {
+    state_to_upd.try_to_join(player_id);
+    if (player_id) {
+      return true;
+    }
+    return false;
+  }
+  void say_hello() override {
+    std::cerr << "ClientJoin " << name;
+  }
+};
+
+class ClientPlaceBomb : public ClientMessage {
+ public:
+  static std::shared_ptr<ClientMessage> create(ByteStream& rest) {
+    return std::make_shared<ClientPlaceBomb>(rest);
+  }
+
+  /**
+   * Constructor that creates the object from a specified bytesream
+   * (unserializes the message on the go)
+   */
+  explicit ClientPlaceBomb([[maybe_unused]] ByteStream& stream) {};
+
+  void updateServerState(ServerState& state_to_upd) override {
+
+    return;
+  }
+
+  void say_hello() override {
+    std::cerr << "ClientPladeBomb ";
+  }
+};
+
+class ClientPlaceBlock : public ClientMessage {
+ public:
+  static std::shared_ptr<ClientMessage> create(ByteStream& rest) {
+    return std::make_shared<ClientPlaceBlock>(rest);
+  }
+
+  /**
+   * Constructor that creates the object from a specified bytesream
+   * (unserializes the message on the go)
+   */
+  explicit ClientPlaceBlock([[maybe_unused]] ByteStream& stream) {};
+
+  void updateServerState(ServerState& state_to_upd) override {
+
+    return;
+  }
+
+  void say_hello() override {
+    std::cerr << "ClientPlaceBlock ";
+  }
+};
+
+class ClientMove : public ClientMessage {
+ private:
+  uint8_t direction{};
+
+ public:
+  static std::shared_ptr<ClientMessage> create(ByteStream& rest) {
+    return std::make_shared<ClientMove>(rest);
+  }
+
+  /**
+   * Constructor that creates the object from a specified bytesream
+   * (unserializes the message on the go)
+   */
+  explicit ClientMove(ByteStream& stream) {
+    stream >> direction;
+  };
+
+  void updateServerState(ServerState& state_to_upd) override {
+    return;
+  }
+
+  void say_hello() override {
+    std::cerr << "ClientMove " << (uint16_t) direction;
   }
 };
 
@@ -596,7 +896,7 @@ void registerAll() {
   ServerMessage::register_to_map(1, AcceptedPlayer::create);
   ServerMessage::register_to_map(2, GameStarted::create);
   ServerMessage::register_to_map(3, Turn::create);
-  GameEnded::register_to_map(4, GameEnded::create);
+  ServerMessage::register_to_map(4, GameEnded::create);
 }
 
 #endif  // SIK_ZAD3_CLIENTSERIALIZATION_H

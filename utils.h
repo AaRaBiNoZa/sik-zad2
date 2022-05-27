@@ -13,6 +13,11 @@ using PlayerId = uint8_t;
 using BombId = uint32_t;
 using Score = uint32_t;
 
+struct PlayerInfo {
+  std::string name;
+  tcp::endpoint endpoint;
+};
+
 class Player {
  public:
   std::string name;
@@ -29,6 +34,11 @@ class Player {
   friend ByteStream& operator>>(ByteStream& os, Player& player) {
     os >> player.name;
     os >> player.address;
+    return os;
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, const Player& p) {
+    os << "{" << p.name << " : " << p.address << "}";
     return os;
   }
 };
@@ -60,6 +70,11 @@ class Position {
     }
     return false;
   }
+
+  friend std::ostream& operator<<(std::ostream& os, const Position& p) {
+    os << "{" << p.x << " : " << p.y << "}";
+    return os;
+  }
 };
 
 class Bomb {
@@ -84,6 +99,11 @@ class Bomb {
 
   bool operator<(const Bomb& bomb2) const {
     return position < bomb2.position;
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, Bomb& p) {
+    os << "{" << p.position << " : " << p.timer << "}";
+    return os;
   }
 };
 

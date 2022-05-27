@@ -7,8 +7,8 @@
 
 #include "Buffer.h"
 #include "ByteStream.h"
-#include "ClientSerialization.h"
 #include "ClientState.h"
+#include "Message.h"
 #include "common.h"
 
 using boost::asio::ip::resolver_base;

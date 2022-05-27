@@ -4,8 +4,8 @@
 #include <iostream>
 #include <string>
 
-#include "ClientSerialization.h"
 #include "ClientState.h"
+#include "Message.h"
 
 int main(int argc, char *argv[]) {
   ClientCommandLineOpts opts;
