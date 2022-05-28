@@ -59,6 +59,9 @@ class StreamBuffer {
   virtual void send() = 0;
   virtual void get() = 0;  // for udp only - reads a full message
   virtual void writeNBytes(uint8_t n, std::vector<uint8_t> buff) = 0;
+  virtual void rewire(std::shared_ptr<tcp::socket> new_sock) {
+    return;
+  }
   virtual ~StreamBuffer() = default;
 };
 
@@ -71,6 +74,13 @@ class TcpStreamBuffer : public StreamBuffer {
  public:
   explicit TcpStreamBuffer(std::shared_ptr<boost::asio::ip::tcp::socket> sock)
       : sock(std::move(sock)), buff(max_single_datatype_size){};
+
+  explicit TcpStreamBuffer()
+      :  buff(max_single_datatype_size){};
+
+  void rewire(std::shared_ptr<tcp::socket> new_tcp_sock) override {
+    sock = new_tcp_sock;
+  }
 
   void getNBytes(uint8_t n, std::vector<uint8_t>& data) override {
     try {

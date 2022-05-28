@@ -5,6 +5,7 @@
 #include <cstring>
 #include <set>
 #include <map>
+#include <utility>
 #include <vector>
 #include <memory>
 
@@ -33,6 +34,10 @@ class ByteStream {
       : data(max_single_datatype_size),
         buffer(std::move(buff)){};
 
+
+  void rewire(std::shared_ptr<tcp::socket> new_tcp_sock) {
+    buffer->rewire(std::move(new_tcp_sock));
+  }
   /**
    * used to prepare the underlying buffer to read/write
    */

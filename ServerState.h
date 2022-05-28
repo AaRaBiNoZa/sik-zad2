@@ -91,6 +91,7 @@ struct ServerCommandLineOpts {
 
 class ServerState {
  private:
+  std::string server_name;
   std::vector<PlayerInfo> players;
   Randomizer rand;
   uint16_t bomb_timer;
@@ -113,9 +114,31 @@ class ServerState {
       next_player_id--;
     }
   }
+  const std::string &get_server_name() const {
+    return server_name;
+  }
+  uint16_t get_bomb_timer() const {
+    return bomb_timer;
+  }
+  uint16_t get_explosion_radius() const {
+    return explosion_radius;
+  }
+  uint16_t get_size_x() const {
+    return size_x;
+  }
+  uint16_t get_game_length() const {
+    return game_length;
+  }
+  uint16_t get_size_y() const {
+    return size_y;
+  }
 
+  uint8_t get_players_count() const {
+      return players.size();
+  };
   explicit ServerState(ServerCommandLineOpts opts)
-      : players(opts.players_count),
+      : server_name(opts.server_name),
+        players(opts.players_count),
         rand(opts.seed),
         bomb_timer(opts.bomb_timer),
         turn_duration(opts.turn_duration),

@@ -347,6 +347,16 @@ class Hello : public ServerMessage {
         explosion_radius >> bomb_timer;
   };
 
+  explicit Hello(ServerState& state) {
+    server_name = state.get_server_name();
+    players_count = state.get_players_count();
+    size_x = state.get_size_x();
+    size_y = state.get_size_y();
+    game_length = state.get_game_length();
+    explosion_radius = state.get_explosion_radius();
+    bomb_timer = state.get_bomb_timer();
+  };
+
   bool updateClientState(ClientState& state_to_upd) override {
     state_to_upd.server_name = server_name;
     state_to_upd.players_count = players_count;
@@ -360,7 +370,7 @@ class Hello : public ServerMessage {
   }
 
   void serialize(ByteStream &os) override {
-    os << server_name << players_count << size_x << size_y << game_length << explosion_radius << bomb_timer;
+    os << getId() << server_name << players_count << size_x << size_y << game_length << explosion_radius << bomb_timer;
   }
 
   void say_hello() override {
@@ -884,7 +894,7 @@ class ClientMove : public ClientMessage {
  * Needs to be called before serialization - it is needed to populate
  * factories' function pointer map.
  */
-void registerAll() {
+void registerAllClient() {
   InputMessage::register_to_map(0, PlaceBomb::create);
   InputMessage::register_to_map(1, PlaceBlock::create);
   InputMessage::register_to_map(2, Move::create);
@@ -897,6 +907,13 @@ void registerAll() {
   ServerMessage::register_to_map(2, GameStarted::create);
   ServerMessage::register_to_map(3, Turn::create);
   ServerMessage::register_to_map(4, GameEnded::create);
+}
+
+void registerAllServer() {
+  ClientMessage::register_to_map(0, ClientJoin::create);
+  ClientMessage::register_to_map(1, ClientPlaceBomb::create);
+  ClientMessage::register_to_map(2, ClientPlaceBlock::create);
+  ClientMessage::register_to_map(3, ClientMove::create);
 }
 
 #endif  // SIK_ZAD3_CLIENTSERIALIZATION_H

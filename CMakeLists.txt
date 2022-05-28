@@ -8,7 +8,7 @@ project(sik_zad2)
 
 #SET(CMAKE_EXE_LINKER_FLAGS
 #        "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath -Wl,/opt/gcc-11.2/lib64")
-SET(CMAKE_CXX_FLAGS "-std=gnu++20 -O2 \
+SET(CMAKE_CXX_FLAGS "-std=c++20 -O2 \
     -pthread")
 
 set(Boost_USE_STATIC_LIBS OFF)
@@ -22,7 +22,7 @@ if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
     add_executable(robots-client client.cpp Client.h Message.h
             ByteStream.h ClientState.h Buffer.h common.h   utils.h )
-    add_executable(robots-server server.cpp ByteStream.h Server.h Buffer.h ServerState.h Message.h)
+    add_executable(robots-server server.cpp Server.h ByteStream.h  Buffer.h ServerState.h Message.h)
     target_link_libraries(robots-client ${Boost_LIBRARIES})
     target_link_libraries(robots-server ${Boost_LIBRARIES})
 endif()

@@ -9,11 +9,14 @@ namespace po = boost::program_options;
 
 int main(int argc, char *argv[]) {
   ServerCommandLineOpts opts;
-  bool parse_results = opts.parse_command_line(argc, argv);
-  opts.players_count -= '0';
-  if (!parse_results) {
+
+  if (!opts.parse_command_line(argc, argv)) {
     return 1;
   }
+  opts.players_count -= '0'; // cause uint8_t
+
+
+  registerAllServer();
   try {
     boost::asio::io_context io_context;
     Server serv(io_context, opts);
