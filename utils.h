@@ -41,6 +41,7 @@ class Player {
     os << "{" << p.name << " : " << p.address << "}";
     return os;
   }
+
 };
 
 class Position {
@@ -61,7 +62,9 @@ class Position {
     os >> position.y;
     return os;
   }
-
+  bool operator==(const Position& pos2) const {
+    return (x == pos2.x && y == pos2.y);
+  }
   bool operator<(const Position& pos2) const {
     if (x < pos2.x) {
       return true;
@@ -70,6 +73,8 @@ class Position {
     }
     return false;
   }
+
+
 
   friend std::ostream& operator<<(std::ostream& os, const Position& p) {
     os << "{" << p.x << " : " << p.y << "}";

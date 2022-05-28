@@ -136,7 +136,7 @@ class Client {
 
  public:
   /**
-   * This constructor initializes all fields. To the tcp_stream we pass
+   * This constructor initializes all fields. To the tcp_receive_stream we pass
    * only a ready socket. It is possible, because tcp is connection based,
    * we can prepare it here and ease the workload for the other class.
    * For udp it's different since we are supposed to be able to read messages

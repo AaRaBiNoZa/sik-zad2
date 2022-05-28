@@ -182,7 +182,7 @@ class Move : public InputMessage {
   }
 
   void say_hello() override {
-    std::cerr << "Hello i am Move dir:" << (uint16_t) direction;
+    std::cerr << "Hello i am Move dir:" << (uint16_t)direction;
   }
 };
 
@@ -277,12 +277,12 @@ class Lobby : public DrawMessage {
 
   void say_hello() override {
     std::cerr << "Hello i am lobby:"
-       << " \nserver_name: " << server_name
-       << " \nplayers_count: " << players_count
-       << " \nsize_x: " << size_x << " \nsize_y: " << size_y
-       << " \ngame_length: " << game_length
-       << " \nexplosion_radius: " << explosion_radius
-       << " \nbomb_timer: " << bomb_timer << " \nplayers: " << players;
+              << " \nserver_name: " << server_name
+              << " \nplayers_count: " << players_count
+              << " \nsize_x: " << size_x << " \nsize_y: " << size_y
+              << " \ngame_length: " << game_length
+              << " \nexplosion_radius: " << explosion_radius
+              << " \nbomb_timer: " << bomb_timer << " \nplayers: " << players;
   }
 };
 
@@ -369,18 +369,19 @@ class Hello : public ServerMessage {
     return true;
   }
 
-  void serialize(ByteStream &os) override {
-    os << getId() << server_name << players_count << size_x << size_y << game_length << explosion_radius << bomb_timer;
+  void serialize(ByteStream& os) override {
+    os << getId() << server_name << players_count << size_x << size_y
+       << game_length << explosion_radius << bomb_timer;
   }
 
   void say_hello() override {
     std::cerr << "Hello i am Hello: "
-       << " \nserver_name: " <<server_name
-       << " \nplayers_count: " << players_count
-       << " \nsize_x: " << size_x << " \nsize_y: " << size_y
-       << " \ngame_length: " << game_length
-       << " \nexplosion_radius: " <<explosion_radius
-       << " \nbomb_timer: " << bomb_timer;
+              << " \nserver_name: " << server_name
+              << " \nplayers_count: " << players_count
+              << " \nsize_x: " << size_x << " \nsize_y: " << size_y
+              << " \ngame_length: " << game_length
+              << " \nexplosion_radius: " << explosion_radius
+              << " \nbomb_timer: " << bomb_timer;
   }
 };
 
@@ -406,6 +407,8 @@ class AcceptedPlayer : public ServerMessage {
     stream >> id >> player;
   };
 
+  AcceptedPlayer(PlayerId id, Player player) : id(id), player(player){};
+
   bool updateClientState(ClientState& state_to_upd) override {
     state_to_upd.players.insert({id, player});
     state_to_upd.scores.insert({id, 0});
@@ -413,13 +416,13 @@ class AcceptedPlayer : public ServerMessage {
     return true;
   }
 
-  void serialize(ByteStream &os) override {
+  void serialize(ByteStream& os) override {
     os << getId() << id << player;
   }
 
   void say_hello() override {
-    std::cerr << "Hello i am AccPlayer: "<<  " \nid: " << id
-       << " \nplayer: " << player;
+    std::cerr << "Hello i am AccPlayer: "
+              << " \nid: " << id << " \nplayer: " << player;
   }
 };
 
@@ -427,10 +430,10 @@ class GameStarted : public ServerMessage {
  private:
   std::map<PlayerId, Player> players;
 
-
   uint8_t getId() override {
     return 2;
   }
+
  public:
   static std::shared_ptr<ServerMessage> create(ByteStream& rest) {
     return std::make_shared<GameStarted>(rest);
@@ -444,6 +447,10 @@ class GameStarted : public ServerMessage {
     stream >> players;
   };
 
+  explicit GameStarted(ServerState& state) {
+    players = state.get_players();
+  };
+
   bool updateClientState(ClientState& state_to_upd) override {
     state_to_upd.game_on = true;
     state_to_upd.players = players;
@@ -454,12 +461,13 @@ class GameStarted : public ServerMessage {
     return false;
   }
 
-  void serialize(ByteStream &os) override {
+  void serialize(ByteStream& os) override {
     os << getId() << players;
   }
 
   void say_hello() override {
-    std::cerr << "Hello i am GStarted: "<<  "\n players: " << players;
+    std::cerr << "Hello i am GStarted: "
+              << "\n players: " << players;
   }
 };
 
@@ -525,8 +533,8 @@ class BombPlaced : public Event {
   }
 
   void say_hello() override {
-    std::cerr << "Hello i am BombPlaced: "<< " \nid: " << id
-       << " \nposition: " << position;
+    std::cerr << "Hello i am BombPlaced: "
+              << " \nid: " << id << " \nposition: " << position;
   }
 };
 
@@ -539,6 +547,7 @@ class BombExploded : public Event {
   uint8_t getId() override {
     return 1;
   }
+
  public:
   static std::shared_ptr<Event> create(ByteStream& rest) {
     return std::make_shared<BombExploded>(rest);
@@ -551,6 +560,14 @@ class BombExploded : public Event {
   explicit BombExploded(ByteStream& stream) {
     stream >> id >> robots_destroyed >> blocks_destroyed;
   };
+
+  BombExploded(BombId b_id, std::set<PlayerId> robots, std::set<Position> positions)
+      : id(b_id), robots_destroyed(robots.begin(), robots.end()),
+        blocks_destroyed(positions.begin(), positions.end()) {
+  }
+
+  BombExploded(){};
+
 
   bool updateClientState(ClientState& state_to_upd) override {
     state_to_upd.calculateExplosions(state_to_upd.bombs[id].position);
@@ -570,9 +587,9 @@ class BombExploded : public Event {
   }
 
   void say_hello() override {
-    std::cerr << "Hello i am BombExploded: "<<  " \nid: " << id
-       << " \nrobots_destroyed: " << robots_destroyed
-       << " \nblocks_destroyed: " << blocks_destroyed;
+    std::cerr << "Hello i am BombExploded: "
+              << " \nid: " << id << " \nrobots_destroyed: " << robots_destroyed
+              << " \nblocks_destroyed: " << blocks_destroyed;
   }
 };
 
@@ -584,6 +601,7 @@ class PlayerMoved : public Event {
   uint8_t getId() override {
     return 2;
   }
+
  public:
   static std::shared_ptr<Event> create(ByteStream& rest) {
     return std::make_shared<PlayerMoved>(rest);
@@ -605,13 +623,17 @@ class PlayerMoved : public Event {
     return true;
   }
 
+  //  bool updateServerState(ServerState& state_to_upd)  {
+  //    state_to_upd.setPlayerPos(id, position);
+  //  }
+
   void serialize(ByteStream& os) override {
     os << getId() << id << position;
   }
 
   void say_hello() override {
-    std::cerr<< "Hello i am PlayerMoved: " << " id: " <<id
-       << " position: " << position;
+    std::cerr << "Hello i am PlayerMoved: "
+              << " id: " << id << " position: " << position;
   }
 };
 
@@ -622,6 +644,7 @@ class BlockPlaced : public Event {
   uint8_t getId() override {
     return 3;
   }
+
  public:
   static std::shared_ptr<Event> create(ByteStream& rest) {
     return std::make_shared<BlockPlaced>(rest);
@@ -642,6 +665,9 @@ class BlockPlaced : public Event {
 
     return true;
   }
+  //  bool updateServerState(ServerState& state_to_upd)  {
+  //    state_to_upd.addBlock(position);
+  //  }
 
   void serialize(ByteStream& os) override {
     os << getId() << position;
@@ -660,6 +686,7 @@ class Turn : public ServerMessage {
   uint8_t getId() override {
     return 3;
   }
+
  public:
   static std::shared_ptr<ServerMessage> create(ByteStream& rest) {
     return std::make_shared<Turn>(rest);
@@ -678,6 +705,12 @@ class Turn : public ServerMessage {
       events[i] = Event::create(stream);
     }
   };
+
+  Turn(uint16_t turn_id) : turn(turn_id){};
+
+  void addEvent(std::shared_ptr<Event> ev) {
+    events.push_back(ev);
+  }
 
   bool updateClientState(ClientState& state_to_upd) override {
     state_to_upd.explosions.clear();
@@ -701,15 +734,15 @@ class Turn : public ServerMessage {
   }
 
   void serialize(ByteStream& os) override {
-    os << getId() << turn << (uint32_t) events.size();
-    for (const auto& event: events) {
+    os << getId() << turn << (uint32_t)events.size();
+    for (const auto& event : events) {
       event->serialize(os);
     }
   }
 
   void say_hello() override {
     std::cerr << "TURN\n";
-    for (const auto& k: events) {
+    for (const auto& k : events) {
       k->say_hello();
       std::cerr << "\n";
     }
@@ -723,6 +756,7 @@ class GameEnded : public ServerMessage {
   uint8_t getId() override {
     return 4;
   }
+
  public:
   static std::shared_ptr<ServerMessage> create(ByteStream& rest) {
     return std::make_shared<GameEnded>(rest);
@@ -768,9 +802,11 @@ class ClientMessage : public Message {
     client_message_map().insert({key, val});
   }
 
-
-  virtual void updateServerState(ServerState& state_to_upd) = 0;
-  virtual bool TryJoin([[maybe_unused]] ServerState& state_to_upd,[[maybe_unused]] std::optional<PlayerId> &player_id) {
+  virtual void updateServerState(ServerState& state_to_upd, PlayerId id,
+                                 std::shared_ptr<Turn> cur_turn) = 0;
+  virtual bool TryJoin([[maybe_unused]] ServerState& state_to_upd,
+                       [[maybe_unused]] std::optional<PlayerId>& player_id,
+                       std::string address) {
     return false;
   }
 
@@ -803,13 +839,14 @@ class ClientJoin : public ClientMessage {
     stream >> name;
   };
 
-  void updateServerState(ServerState& state_to_upd) override {
-
+  void updateServerState(ServerState& state_to_upd, PlayerId id,
+                         std::shared_ptr<Turn> cur_turn) override {
     return;
   }
 
-  bool TryJoin(ServerState& state_to_upd, std::optional<PlayerId> &player_id) override {
-    state_to_upd.try_to_join(player_id);
+  bool TryJoin(ServerState& state_to_upd, std::optional<PlayerId>& player_id,
+               std::string address) override {
+    state_to_upd.try_to_join(player_id, {name, address});
     if (player_id) {
       return true;
     }
@@ -830,11 +867,13 @@ class ClientPlaceBomb : public ClientMessage {
    * Constructor that creates the object from a specified bytesream
    * (unserializes the message on the go)
    */
-  explicit ClientPlaceBomb([[maybe_unused]] ByteStream& stream) {};
+  explicit ClientPlaceBomb([[maybe_unused]] ByteStream& stream){};
 
-  void updateServerState(ServerState& state_to_upd) override {
-
-    return;
+  void updateServerState(ServerState& state_to_upd, PlayerId id,
+                         std::shared_ptr<Turn> cur_turn) override {
+    uint32_t bomb_id = state_to_upd.placeBomb(state_to_upd.getPlayerPos(id));
+    cur_turn->addEvent(
+        std::make_shared<BombPlaced>(bomb_id, state_to_upd.getPlayerPos(id)));
   }
 
   void say_hello() override {
@@ -852,11 +891,14 @@ class ClientPlaceBlock : public ClientMessage {
    * Constructor that creates the object from a specified bytesream
    * (unserializes the message on the go)
    */
-  explicit ClientPlaceBlock([[maybe_unused]] ByteStream& stream) {};
+  explicit ClientPlaceBlock([[maybe_unused]] ByteStream& stream){};
 
-  void updateServerState(ServerState& state_to_upd) override {
-
-    return;
+  void updateServerState(ServerState& state_to_upd, PlayerId id,
+                         std::shared_ptr<Turn> cur_turn) override {
+    if (state_to_upd.placeBlock(state_to_upd.getPlayerPos(id))) {
+      cur_turn->addEvent(
+          std::make_shared<BlockPlaced>(state_to_upd.getPlayerPos(id)));
+    }
   }
 
   void say_hello() override {
@@ -881,12 +923,16 @@ class ClientMove : public ClientMessage {
     stream >> direction;
   };
 
-  void updateServerState(ServerState& state_to_upd) override {
-    return;
+  void updateServerState(ServerState& state_to_upd, PlayerId id,
+                         std::shared_ptr<Turn> cur_turn) override {
+    if (state_to_upd.movePlayerTo(id, direction)) {
+      cur_turn->addEvent(
+          std::make_shared<PlayerMoved>(id, state_to_upd.getPlayerPos(id)));
+    }
   }
 
   void say_hello() override {
-    std::cerr << "ClientMove " << (uint16_t) direction;
+    std::cerr << "ClientMove " << (uint16_t)direction;
   }
 };
 
