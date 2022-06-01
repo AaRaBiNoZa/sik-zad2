@@ -23,10 +23,10 @@ class PlayerConnection {
   ByteStream tcp_send_stream;
   std::shared_ptr<ServerState> server_state;
   std::optional<PlayerId> my_id;
+  std::optional<std::shared_ptr<ClientMessage>> last_msg;
+
   std::shared_ptr<std::barrier<>> game_start_barrier;
   std::mutex send_mutex;
-  std::condition_variable_any wait_for_get_turns;
-  std::condition_variable_any add_my_mess;
 
  private:
   void init_playing() {
@@ -40,55 +40,99 @@ class PlayerConnection {
       tcp_receive_stream.reset();
       std::shared_ptr<ClientMessage> rec_message =
           ClientMessage::unserialize(tcp_receive_stream);
-      std::shared_lock lk(server_state->get_client_messages_rw());
-      add_my_mess.wait(lk, [&]{return server_state->get_want_to_write_to_rcv_events() == 0;});
-      server_state->getMessagesFromTurn()[*my_id] = rec_message;
+
+      if (rec_message->amIJoin()) {
+        continue;
+      }
+      std::shared_lock client_message_lock(server_state->getClientMessagesRw());
+      server_state->getWaitForPlayersMessages().wait(client_message_lock, [&] {
+        return server_state->getWantToWriteToClientMessages() == 0;
+      });
+
+      if (my_id) {
+        server_state->getMessagesFromTurnNoSync()[*my_id] = rec_message;
+      } else {
+        last_msg.emplace(rec_message);
+        return;
+      }
       rec_message->say_hello();
     }
-  }
-
-  void start_observing() {
-
   }
 
  public:
   void start_receive() {
-    for (;;) {
-      if (server_state->get_game_started()) {
-        start_observing();
-      }
-      tcp_receive_stream.reset();
-      std::shared_ptr<ClientMessage> rec_message =
-          ClientMessage::unserialize(tcp_receive_stream);
+    try {
+      for (;;) {
+        std::shared_ptr<ClientMessage> rec_message;
+        if (!last_msg) {
+          tcp_receive_stream.reset();
+          rec_message = ClientMessage::unserialize(tcp_receive_stream);
+        } else {
+          rec_message = *last_msg;
+          last_msg.reset();
+        }
 
-      rec_message->say_hello();
-      std::stringstream endpoint_string;
-      endpoint_string << socket->remote_endpoint();
-      if (rec_message->TryJoin(*server_state, my_id, endpoint_string.str())) {
-        break;
+        rec_message->say_hello();
+        std::stringstream endpoint_string;
+        endpoint_string << socket->remote_endpoint();
+        if (!server_state->getGameStarted() &&
+            rec_message->TryJoin(*server_state, my_id, endpoint_string.str())) {
+          init_playing();
+        }
       }
     }
-    init_playing();
+    catch (std::exception& e) {
+      socket->close();
+      return;
+    }
   }
-// first block connections, then do stuff with join
+  // first block connections, then do stuff with join
 
+  // this is only ever called by the connector,
+  // here we players are locked with shared access and connections with
+  // exclusive
   void sendInitMessage() {
     std::lock_guard lk(send_mutex);
     tcp_send_stream.reset();
     Hello(*server_state).serialize(tcp_send_stream);
-    if (server_state->get_game_started()) {
-      std::shared_lock lock2(server_state->get_turn_vec_mut());
-      wait_for_get_turns.wait(lock2, [&]{return server_state->get_want_to_write_to_turns() == 0;});
-      for (auto k: server_state->get_all_turns()) {
+    tcp_send_stream.endWrite();
+
+    tcp_send_stream.reset();
+    if (server_state->getGameStarted()) {  // GAME STARTED MSG
+      std::shared_lock players_lock(
+          server_state
+              ->getPlayersMutex());  // noone is allowed to join, because we
+                                     // want to send initial/broadcast message
+      server_state->getWaitForPlayers().wait(players_lock, [&] {
+        return server_state->getWantToWriteToPlayers() == 0;
+      });
+
+      GameStarted game_started_msg(server_state->getPlayers());
+      game_started_msg.serialize(tcp_send_stream);
+      tcp_send_stream.endWrite();
+
+      tcp_send_stream.reset();
+
+      // getting shared access to turns (reader)
+      std::shared_lock turns_lock(server_state->getAllTurnsMutex());
+      server_state->getWaitForTurns().wait(turns_lock, [&] {
+        return server_state->getWantToWriteToTurns() == 0;
+      });
+
+      for (auto k : server_state->getAllTurnsNoSync()) {
         k->serialize(tcp_send_stream);
       }
+
+      tcp_send_stream.endWrite();
     } else {
-      std::map<PlayerId, Player> players = server_state->get_players();
-      for (auto [id, player]: players) {
+
+
+      std::map<PlayerId, Player> players = server_state->getPlayers();
+      for (auto [id, player] : players) {
         AcceptedPlayer(id, player).serialize(tcp_send_stream);
       }
+      tcp_send_stream.endWrite();
     }
-    tcp_send_stream.endWrite();
   }
 
   void sendMessage(ServerMessage& msg) {
@@ -98,31 +142,21 @@ class PlayerConnection {
     tcp_send_stream.endWrite();
   }
 
-  void wakeMeNewTurn() {
-    add_my_mess.notify_all();
+  void endPlaying() {
+    my_id.reset();
   }
 
-  void wakeMeGetTurn() {
-    wait_for_get_turns.notify_all();
-  }
-
-  std::shared_ptr<tcp::socket> getSocket() {
-    return socket;
-  }
-
-  explicit PlayerConnection(boost::asio::io_context& io,
-                            std::shared_ptr<ServerState> state,
+  explicit PlayerConnection(std::shared_ptr<ServerState> state,
                             std::shared_ptr<std::barrier<>> game_start_barrier,
                             std::shared_ptr<tcp::socket> sock)
       : socket(sock),
         tcp_receive_stream(std::make_unique<TcpStreamBuffer>(socket)),
         tcp_send_stream(std::make_unique<TcpStreamBuffer>(socket)),
         server_state(std::move(state)),
-        game_start_barrier(std::move(game_start_barrier))
-        {
+        game_start_barrier(std::move(game_start_barrier)) {
     boost::asio::ip::tcp::no_delay option(true);
     socket->set_option(option);
-        };
+  };
 };
 
 // will create new connection
@@ -131,13 +165,10 @@ class Connector {
  private:
   boost::asio::io_context& io_context;
   tcp::acceptor acceptor;
-  std::vector<std::jthread> threads;
   std::shared_ptr<ServerState> state;
-  std::vector<std::shared_ptr<PlayerConnection>> connections;
+  std::set<std::shared_ptr<PlayerConnection>> connections;
   std::shared_ptr<std::barrier<>> game_start_barrier;
   std::mutex connections_mutex;
-  std::vector<std::shared_ptr<std::mutex>> connection_send_mutexes;
-  ByteStream tcp_send_hello_stream;
 
   void start_accept() {
     std::shared_ptr<tcp::socket> new_socket =
@@ -150,26 +181,27 @@ class Connector {
 
   // needs to be sure that
 
-
   void connectionHandler(std::shared_ptr<tcp::socket> sock,
                          const boost::system::error_code& error) {
     std::cerr << "Got a new connection lulz \n";
     std::shared_ptr<PlayerConnection> new_connection =
-        std::make_shared<PlayerConnection>(io_context, state,
-                                           game_start_barrier, sock);
+        std::make_shared<PlayerConnection>(state, game_start_barrier, sock);
 
-    //  no new players can be added here
-    std::unique_lock players_lock(state->get_players_mut());
-    new_connection->sendInitMessage();
+    std::unique_lock lk(
+        connections_mutex);  // noone is allowed to broadcast, since this
+                             // connection wouldn't be included
 
-    std::unique_lock lk(connections_mutex); // so taht if some other thread would join and we'd broadcast, this one doesn't miss out
-    connections.push_back(new_connection);
+    try {
+      new_connection->sendInitMessage();
+    } catch (std::exception& e){
+      start_accept();
+      return;
+    }
+
+    connections.insert(new_connection);
     lk.unlock();
 
-    // after this, the server will send out broadcast
-    players_lock.unlock();
-
-    threads.emplace_back(&PlayerConnection::start_receive, new_connection);
+    std::jthread(&PlayerConnection::start_receive, new_connection).detach();
     start_accept();
   }
 
@@ -181,22 +213,32 @@ class Connector {
 
   void broadcastAMessage(ServerMessage& msg) {
     std::lock_guard lk(connections_mutex);
-    for (auto &connection: connections) {
-      connection->sendMessage(msg);
+    std::set<std::shared_ptr<PlayerConnection> >to_delete;
+    for (auto& connection : connections) {
+      try {
+        connection->sendMessage(msg);
+      } catch (std::exception& e){
+        to_delete.insert(connection);
+      }
+    }
+    for (auto &connection: to_delete) {
+      connections.erase(connection);
     }
   }
 
-  void wakeAllNewTurn() {
+  void finish() {
     std::lock_guard lk(connections_mutex);
-    for (auto &connection: connections) {
-      connection->wakeMeNewTurn();
+    std::set<std::shared_ptr<PlayerConnection> >to_delete;
+    for (auto& connection : connections) {
+      try {
+        connection->endPlaying();
+      } catch (std::exception& e) {
+        to_delete.insert(connection);
+      }
     }
-  }
 
-  void wakeAllGetTurn() {
-    std::lock_guard lk(connections_mutex);
-    for (auto &connection: connections) {
-      connection->wakeMeGetTurn();
+    for (auto &connection : to_delete) {
+      connections.erase(connection);
     }
   }
 
@@ -207,8 +249,7 @@ class Connector {
       : io_context(io_context),
         acceptor(io_context, tcp::endpoint(tcp::v6(), opts.port)),
         state(std::move(state)),
-        game_start_barrier(std::move(game_start_barrier)),
-        tcp_send_hello_stream(std::make_unique<TcpStreamBuffer>()){
+        game_start_barrier(std::move(game_start_barrier)){
 
         };
 };
@@ -219,106 +260,144 @@ class Server {
   std::shared_ptr<std::barrier<>> game_start_barrier;
   std::shared_ptr<Connector> connector;
   std::jthread connector_thread;
-  boost::asio::io_context& io;
+  boost::asio::steady_timer turn_timer;
 
  public:
-
-
-
   void start_lobby() {
-    for (uint16_t i = 0; i < server_state->get_players_count(); ++i) {
+    for (uint16_t i = 0; i < server_state->getPlayersCount(); ++i) {
       game_start_barrier->arrive_and_wait();
-      auto player = server_state->getPlayer(i);
-      AcceptedPlayer acc_msg = AcceptedPlayer(i, player);
-      connector->broadcastAMessage(acc_msg);
-    }
-    GameStarted game_started_message(*server_state);
-    server_state->start_game();
-    connector->broadcastAMessage(game_started_message);
-    init_game();
 
+      auto player = server_state->getPlayerSync(
+          i);  // safe read - at this moment this slot
+                                       // ought to be valid and written to
+
+      AcceptedPlayer acc_msg = AcceptedPlayer(i, player);
+      connector->broadcastAMessage(
+          acc_msg);  // this is responsibility of connector to synchronize
+                     // correctly
+    }
+  // add mutex to players
+    GameStarted game_started_message(*server_state);
+    server_state->startGame();  // atomic
+    connector->broadcastAMessage(
+        game_started_message);  // connector's responsibility
+
+    init_game();
   }
 
+  // players don't interfere with server state directly during the game, all
+  // interpretations of their messages is done here, in this class
   void init_game() {
     std::cerr << "GAME STARTED";
-    std::shared_ptr<Turn> init_turn = std::make_shared<Turn>(0);
-    for (auto k: server_state->get_players()) {
-      Position init_pos(server_state->get_rand().getNextVal() % server_state->get_size_x(), server_state->get_rand().getNextVal() % server_state->get_size_y());
-      std::shared_ptr<PlayerMoved> msg = std::make_shared<PlayerMoved>(k.first, init_pos);
-      server_state->movePlayer(k.first, init_pos);
+    std::shared_ptr<Turn> init_turn = std::make_shared<Turn>(
+        0);  // preparations for the game, initial positions etc
+
+    for (auto [playerId, player] : server_state->getPlayers()) {
+      Position init_pos(
+          server_state->getRand().getNextVal() % server_state->getSizeX(),
+          server_state->getRand().getNextVal() % server_state->getSizeY());
+      std::shared_ptr<PlayerMoved> msg =
+          std::make_shared<PlayerMoved>(playerId, init_pos);
+      server_state->movePlayer(playerId, init_pos);
       init_turn->addEvent(msg);
     }
-    for (uint16_t i = 0; i < server_state->get_initial_blocks(); ++i) {
-      Position init_pos(server_state->get_rand().getNextVal() % server_state->get_size_x(), server_state->get_rand().getNextVal() % server_state->get_size_y());
-      std::shared_ptr<BlockPlaced> msg = std::make_shared<BlockPlaced>(init_pos);
+
+    for (uint16_t i = 0; i < server_state->getInitialBlocks(); ++i) {
+      Position init_pos(
+          server_state->getRand().getNextVal() % server_state->getSizeX(),
+          server_state->getRand().getNextVal() % server_state->getSizeY());
+      std::shared_ptr<BlockPlaced> msg =
+          std::make_shared<BlockPlaced>(init_pos);
       server_state->placeBlock(init_pos);
       init_turn->addEvent(msg);
     }
     connector->broadcastAMessage(*init_turn);
-    server_state->addTurn(init_turn);
+    server_state->addTurnSync(init_turn);
 
     start_game();
   }
 
   void start_game() {
-
-    for (uint16_t i = 1; i < server_state->get_game_length() + 1; ++i) {
-      boost::asio::steady_timer turn_timer(io, boost::asio::chrono::milliseconds (server_state->get_turn_duration()));
+    for (uint16_t i = 1; i < server_state->getGameLength() + 1; ++i) {
+      turn_timer.expires_after(
+          boost::asio::chrono::milliseconds(server_state->getTurnDuration()));
       turn_timer.wait();
-
       doOneTurn(i);
     }
+    turn_timer.expires_after(
+        boost::asio::chrono::milliseconds(server_state->getTurnDuration()));
+    turn_timer.wait();
+    endGame();
   }
 
+  void endGame() {
+    server_state->getWantToWriteToClientMessages()++;  // blocking all that got any messages
+    std::unique_lock lk(server_state->getClientMessagesMutex());
+    server_state->resetMessagesFromPlayersNoSync();
+    connector->finish();
+
+    server_state->reset();
+    server_state->getWantToWriteToClientMessages()--;
+    server_state->wakeWaitingForSharedClientMessages();
+
+    auto new_msg = GameEnded(server_state->getScores());
+    connector->broadcastAMessage(new_msg);
+  }
 
   void doOneTurn(uint16_t turn_num) {
-      server_state->get_want_to_write_to_rcv_events()++;
-      std::unique_lock lk(server_state->get_client_messages_rw());
-      std::shared_ptr<Turn> cur_turn = std::make_shared<Turn>(turn_num);
+    server_state->getWantToWriteToClientMessages()++;
+    std::unique_lock lk(
+        server_state
+            ->getClientMessagesMutex());  // blocking saving recent messages, since the turn has ended
+    std::shared_ptr<Turn> cur_turn = std::make_shared<Turn>(turn_num);
 
-      for (auto [id, bomb]: server_state->get_bombs()) {
-        auto opt_val = server_state->checkBomb(id);
-        if (opt_val) {
-          auto [a,b] = *opt_val;
-          std::shared_ptr<BombExploded> bomb_explosion = std::make_shared<BombExploded>(id, b,a);
-          cur_turn->addEvent(bomb_explosion);
-        }
-
+    for (auto [id, bomb] : server_state->getBombs()) {
+      auto opt_val = server_state->checkBomb(id);
+      if (opt_val) {
+        auto [a, b] = *opt_val;
+        std::shared_ptr<BombExploded> bomb_explosion =
+            std::make_shared<BombExploded>(id, b, a);
+        cur_turn->addEvent(bomb_explosion);
       }
+    }
 
-      auto dead_players = server_state->cleanUpBombs();
+    auto dead_players = server_state->cleanUpBombs();
 
-      for (auto [id, msg]: server_state->getMessagesFromTurn()) {
-        if (!dead_players.contains(id) && msg) {
-          msg->updateServerState(*server_state, id, cur_turn); // and id, //and turn
-          std::cerr << "\n\nREADING NOW\n\n ";
-        } else if (dead_players.contains(id)) {
-          Position new_pos(server_state->get_rand().getNextVal() % server_state->get_size_x(), server_state->get_rand().getNextVal() % server_state->get_size_y());
-          std::shared_ptr<PlayerMoved> msg = std::make_shared<PlayerMoved>(id, new_pos);
-          server_state->movePlayer(id, new_pos);
-          cur_turn->addEvent(msg);
-        }
+    for (auto [id, msg] : server_state->getMessagesFromTurnNoSync()) {
+      if (!dead_players.contains(id) && msg) {
+        msg->updateServerState(*server_state, id,
+                               cur_turn);  // and id, //and turn
+        std::cerr << "\n\nREADING NOW\n\n ";
+      } else if (dead_players.contains(id)) {
+        Position new_pos(
+            server_state->getRand().getNextVal() % server_state->getSizeX(),
+            server_state->getRand().getNextVal() % server_state->getSizeY());
+        std::shared_ptr<PlayerMoved> new_msg =
+            std::make_shared<PlayerMoved>(id, new_pos);
+        server_state->movePlayer(id, new_pos);
+        cur_turn->addEvent(new_msg);
       }
-      server_state->resetmessagesfromturn();
-      connector->broadcastAMessage(*cur_turn);
-      server_state->addTurn(cur_turn);
-      server_state->get_want_to_write_to_rcv_events()--;
-      connector->wakeAllNewTurn();
-      connector->wakeAllGetTurn();
-
-
+    }
+    server_state->resetMessagesFromPlayersNoSync();
+    connector->broadcastAMessage(*cur_turn);
+    server_state->addTurnSync(cur_turn);
+    server_state->getWantToWriteToClientMessages()--;
+    server_state->wakeWaitingForSharedClientMessages();
   }
 
-//  void do_one_turn
+  //  void do_one_turn
 
   Server(boost::asio::io_context& io_context, ServerCommandLineOpts opts)
       : server_state(std::make_shared<ServerState>(opts)),
-        game_start_barrier(
-            std::make_shared<std::barrier<>>(2)),
+        game_start_barrier(std::make_shared<std::barrier<>>(2)),
         connector(std::make_shared<Connector>(io_context, opts, server_state,
-                                              game_start_barrier)), io(io_context) {
+                                              game_start_barrier)),
+        turn_timer(io_context) {
     connector_thread = std::jthread(&Connector::init, connector);
-    start_lobby();
+
+    for (;;) {
+      start_lobby();
+    }
   };
 };
 

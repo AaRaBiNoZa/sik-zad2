@@ -348,13 +348,13 @@ class Hello : public ServerMessage {
   };
 
   explicit Hello(ServerState& state) {
-    server_name = state.get_server_name();
-    players_count = state.get_players_count();
-    size_x = state.get_size_x();
-    size_y = state.get_size_y();
-    game_length = state.get_game_length();
-    explosion_radius = state.get_explosion_radius();
-    bomb_timer = state.get_bomb_timer();
+    server_name = state.getServerName();
+    players_count = state.getPlayersCount();
+    size_x = state.getSizeX();
+    size_y = state.getSizeY();
+    game_length = state.getGameLength();
+    explosion_radius = state.getExplosionRadius();
+    bomb_timer = state.getBombTimer();
   };
 
   bool updateClientState(ClientState& state_to_upd) override {
@@ -448,7 +448,11 @@ class GameStarted : public ServerMessage {
   };
 
   explicit GameStarted(ServerState& state) {
-    players = state.get_players();
+    players = state.getPlayers();
+  };
+
+  explicit GameStarted(std::map<PlayerId, Player> players_in) {
+    players = players_in;
   };
 
   bool updateClientState(ClientState& state_to_upd) override {
@@ -770,6 +774,10 @@ class GameEnded : public ServerMessage {
     stream >> scores;
   };
 
+  explicit GameEnded(std::map<PlayerId, Score> scores) {
+    scores = scores;
+  };
+
   bool updateClientState(ClientState& state_to_upd) override {
     state_to_upd.reset();
 
@@ -819,6 +827,10 @@ class ClientMessage : public Message {
     return client_message_map()[c](istr);
   }
 
+  virtual bool amIJoin() {
+    return false;
+  }
+
   virtual ~ClientMessage() = default;
 };
 /* **************************************** */
@@ -846,7 +858,7 @@ class ClientJoin : public ClientMessage {
 
   bool TryJoin(ServerState& state_to_upd, std::optional<PlayerId>& player_id,
                std::string address) override {
-    state_to_upd.try_to_join(player_id, {name, address});
+    state_to_upd.tryToJoin(player_id, {name, address});
     if (player_id) {
       return true;
     }
@@ -854,6 +866,10 @@ class ClientJoin : public ClientMessage {
   }
   void say_hello() override {
     std::cerr << "ClientJoin " << name;
+  }
+
+  bool amIJoin() override {
+    return true;
   }
 };
 
@@ -925,7 +941,7 @@ class ClientMove : public ClientMessage {
 
   void updateServerState(ServerState& state_to_upd, PlayerId id,
                          std::shared_ptr<Turn> cur_turn) override {
-    if (state_to_upd.movePlayerTo(id, direction)) {
+    if (state_to_upd.movePlayerInDirection(id, direction)) {
       cur_turn->addEvent(
           std::make_shared<PlayerMoved>(id, state_to_upd.getPlayerPos(id)));
     }
