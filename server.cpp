@@ -13,14 +13,12 @@ int main(int argc, char *argv[]) {
   if (!opts.parse_command_line(argc, argv)) {
     return 1;
   }
-  opts.players_count -= '0'; // cause uint8_t
+  opts.players_count -= '0'; // because it's uint8_t
 
-
-  registerAllServer();
+  register_all_server();
   try {
     boost::asio::io_context io_context;
     Server serv(io_context, opts);
-    //    io_context.run();
   } catch (std::exception &e) {
     std::cerr << e.what() << std::endl;
   }

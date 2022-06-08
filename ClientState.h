@@ -27,19 +27,13 @@ struct ClientCommandLineOpts {
     try {
       po::options_description desc("Opcje programu:");
       desc.add_options()
-          ("gui-address,d",
-           po::value<std::string>(&display_address)->required(),
+          ("gui-address,d", po::value<std::string>(&display_address)->required(),
           "<(nazwa hosta):(port) lub (IPv4):(port) lub (IPv6):(port)>")
-          ("help,h",
-           "Wypisuje jak używać programu")
-          ("player-name,n",
-          po::value<std::string>(&player_name)->required(),
-           "<String>")
-          ("port,p",
-          po::value<uint16_t>(&port)->required(),
-          "<u16>")
-          ("server-address,s",
-          po::value<std::string>(&server_address)->required(),
+          ("help,h", "Wypisuje jak używać programu")
+          ("player-name,n", po::value<std::string>(&player_name)->required(),
+          "<String>")
+          ("port,p", po::value<uint16_t>(&port)->required(),"<u16>")
+          ("server-address,s",po::value<std::string>(&server_address)->required(),
           "<(nazwa hosta):(port) lub (IPv4):(port) lub (IPv6):(port)>");
 
       po::variables_map vm;
@@ -93,7 +87,7 @@ struct ClientState {
   /**
    * Ease function to add new bomb (we have the bomb timer ready)
    */
-  void addBomb(BombId id, Position pos) {
+  void add_bomb(BombId id, Position pos) {
     bombs[id] = {pos, bomb_timer};
   }
 
@@ -105,7 +99,7 @@ struct ClientState {
    * If a bomb exploded on a block, we only insert one explosion - on that
    * blocks position.
    */
-  void calculateExplosions(Position explosion) {
+  void calculate_explosions(Position explosion) {
     explosions.insert(explosion);
     if (blocks.contains(explosion)) {
       return;

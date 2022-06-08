@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "Buffer.h"
-#include "common.h"
 
 /**
  * It is a class that provides an easy interface for an associated buffer
@@ -31,7 +30,7 @@ class ByteStream {
    * @param buff
    */
   explicit ByteStream(std::unique_ptr<StreamBuffer> buff)
-      : data(max_single_datatype_size), buffer(std::move(buff)){};
+      : data(StreamBuffer::max_single_datatype_size), buffer(std::move(buff)){};
 
   /**
    * used to prepare the underlying buffer to read/write
@@ -53,7 +52,7 @@ class ByteStream {
    * Does everything necessary after receiving/reading from underlying system
    * (in this case it's a socket).
    */
-  void endRec() {
+  void end_receive() {
     buffer->end_receive();
   }
 
@@ -61,7 +60,7 @@ class ByteStream {
    * Does everything necessary after writing to underlying system
    * (in this case it's a socket).
    */
-  void endWrite() {
+  void end_write() {
     buffer->send();
   }
 

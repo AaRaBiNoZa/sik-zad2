@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
   if (!opts.parse_command_line(argc, argv)) {
     return 1;
   }
-  registerAllClient();
+  register_all_client();
 
   try {
     boost::asio::io_context io_context;

@@ -9,7 +9,7 @@
 #include "ByteStream.h"
 #include "ClientState.h"
 #include "Message.h"
-#include "common.h"
+#include "utils.h"
 
 using boost::asio::ip::resolver_base;
 using boost::asio::ip::tcp;
@@ -65,7 +65,7 @@ class Client {
       /* to ignore invalid GUI messages */
       try {
         received_message = InputMessage::deserialize(udp_stream);
-        udp_stream.endRec();
+        udp_stream.end_receive();
       } catch (std::exception& e) {
         udp_start_receive();
         return;
@@ -77,7 +77,7 @@ class Client {
       } else {
         received_message->serialize(tcp_stream);
       }
-      tcp_stream.endWrite();
+      tcp_stream.end_write();
       udp_start_receive();
     } catch (std::exception& e) {
       std::cerr << e.what() << std::endl;
@@ -86,7 +86,6 @@ class Client {
       exit(1);
     }
   }
-
 
   /**
    * Function that starts asynchronously listening for TCP messages.
@@ -116,14 +115,14 @@ class Client {
       std::shared_ptr<ServerMessage> rec_message =
           ServerMessage::deserialize(tcp_stream);
 
-      if (rec_message->updateClientState(aggregated_state)) {
+      if (rec_message->update_client_state(aggregated_state)) {
         udp_stream.reset();
         if (!aggregated_state.game_on) {
           Lobby(aggregated_state).serialize(udp_stream);
         } else {
           Game(aggregated_state).serialize(udp_stream);
         }
-        udp_stream.endWrite();
+        udp_stream.end_write();
       }
 
       tcp_start_receive();

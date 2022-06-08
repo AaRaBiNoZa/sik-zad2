@@ -9,7 +9,7 @@ class Randomizer {
   explicit Randomizer(uint32_t seed) : last_val(seed) {};
   uint32_t getNextVal() {
     last_val = (last_val * 48271) % 2147483647;
-    return last_val;
+    return (uint32_t) last_val;
   }
 };
 

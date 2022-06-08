@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-#include "common.h"
+#include "utils.h"
 
 using boost::asio::ip::resolver_base;
 using boost::asio::ip::tcp;
@@ -53,6 +53,9 @@ class StreamBuffer {
   std::vector<uint8_t> buff;
 
  public:
+  // max_len string
+  static const uint16_t max_single_datatype_size = 256;
+
   virtual void get_n_bytes(uint8_t n, std::vector<uint8_t>& data) = 0;
   virtual void
   end_receive() = 0;         // used for cleaning after any type of read/receive
@@ -67,18 +70,14 @@ class StreamBuffer {
 class TcpStreamBuffer : public StreamBuffer {
  private:
   std::shared_ptr<boost::asio::ip::tcp::socket> sock;
-  std::vector<uint8_t> buff;
+  std::vector<uint8_t> internal_buffer;
   size_t bytes_to_send_count{};
 
  public:
   explicit TcpStreamBuffer(std::shared_ptr<boost::asio::ip::tcp::socket> sock)
-      : sock(std::move(sock)), buff(max_single_datatype_size){};
+      : sock(std::move(sock)), internal_buffer(max_single_datatype_size){};
 
-  explicit TcpStreamBuffer() : buff(max_single_datatype_size){};
-
-  void rewire(std::shared_ptr<tcp::socket> new_tcp_sock) override {
-    sock = new_tcp_sock;
-  }
+  explicit TcpStreamBuffer() : internal_buffer(max_single_datatype_size){};
 
   void get_n_bytes(uint8_t n, std::vector<uint8_t>& data) override {
     try {
@@ -90,7 +89,7 @@ class TcpStreamBuffer : public StreamBuffer {
 
   void send() override {
     if (bytes_to_send_count != 0) {
-      sock->send(boost::asio::buffer(buff, bytes_to_send_count));
+      sock->send(boost::asio::buffer(internal_buffer, bytes_to_send_count));
       bytes_to_send_count = 0;
     }
   }
@@ -108,7 +107,7 @@ class TcpStreamBuffer : public StreamBuffer {
     if (bytes_to_send_count + n > max_single_datatype_size) {
       send();
     }
-    memcpy(&buff[bytes_to_send_count], &buffer[0], n);
+    memcpy(&internal_buffer[bytes_to_send_count], &buffer[0], n);
     bytes_to_send_count += n;
   }
 
@@ -129,8 +128,8 @@ class UdpStreamBuffer : public StreamBuffer {
   std::shared_ptr<boost::asio::ip::udp::socket> rec_sock;
   boost::asio::ip::udp::socket send_sock;
   boost::asio::ip::udp::endpoint remote_endpoint;
-  std::vector<uint8_t> buff;
-  size_t ptr_to_act_el{};
+  std::vector<uint8_t> internal_buff;
+  size_t bytes_to_send_count{};
 
   size_t len{};
 
@@ -140,7 +139,7 @@ class UdpStreamBuffer : public StreamBuffer {
                            boost::asio::io_context& io_context)
       : rec_sock(std::move(sock)),
         send_sock(io_context, udp::endpoint(udp::v6(), 0)),
-        buff(max_data_size) {
+        internal_buff(max_data_size) {
     auto [remote_host, remote_port] = extract_host_and_port(remote_address);
     udp::resolver udp_resolver(io_context);
     remote_endpoint = *udp_resolver.resolve(udp::v6(), remote_host, remote_port,
@@ -151,42 +150,42 @@ class UdpStreamBuffer : public StreamBuffer {
     send_sock.connect(remote_endpoint);
   };
   void reset() override {
-    ptr_to_act_el = 0;
+    bytes_to_send_count = 0;
   }
 
   void get() override {
     boost::asio::ip::udp::endpoint dummy;
-    len = rec_sock->receive_from(boost::asio::buffer(buff), dummy);
+    len = rec_sock->receive_from(boost::asio::buffer(internal_buff), dummy);
   }
 
   void get_n_bytes(uint8_t n, std::vector<uint8_t>& data) override {
-    if (ptr_to_act_el + n > len) {
+    if (bytes_to_send_count + n > len) {
       throw MessageTooShortException();
     }
 
     for (size_t i = 0; i < n; ++i) {
-      data[i] = buff[ptr_to_act_el];
-      ptr_to_act_el++;
+      data[i] = internal_buff[bytes_to_send_count];
+      bytes_to_send_count++;
     }
   }
 
   void end_receive() override {
-    if (len != ptr_to_act_el) {
+    if (len != bytes_to_send_count) {
       throw MessageTooLongException();
     }
   }
 
   void write_n_bytes(uint8_t n, std::vector<uint8_t> buffer) override {
-    if (ptr_to_act_el + n > max_data_size) {
+    if (bytes_to_send_count + n > max_data_size) {
       throw UdpOverflowException();
     }
 
-    memcpy(&buff[ptr_to_act_el], &buffer[0], n);
-    ptr_to_act_el += n;
+    memcpy(&internal_buff[bytes_to_send_count], &buffer[0], n);
+    bytes_to_send_count += n;
   }
   void send() override {
-    if (ptr_to_act_el != 0) {
-      send_sock.send(boost::asio::buffer(buff, ptr_to_act_el));
+    if (bytes_to_send_count != 0) {
+      send_sock.send(boost::asio::buffer(internal_buff, bytes_to_send_count));
     }
   }
 

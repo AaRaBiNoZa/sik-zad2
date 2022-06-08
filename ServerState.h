@@ -5,6 +5,7 @@
 #include <chrono>
 #include <iostream>
 #include <optional>
+#include <shared_mutex>
 #include <string>
 #include <utility>
 
@@ -32,21 +33,26 @@ struct ServerCommandLineOpts {
 
   bool parse_command_line(int argc, char *argv[]) {
     try {
-      po::options_description desc("Allowed options");
-      desc.add_options()("bomb-timer,b",
-                         po::value<uint16_t>(&bomb_timer)->required())(
-          "help,h", "produce help message")(
-          "players-count,c", po::value<uint8_t>(&players_count)->required())(
-          "port,p", po::value<uint16_t>(&port)->required())(
-          "turn-duration,d", po::value<uint64_t>(&turn_duration)->required())(
-          "explosion-radius,e",
-          po::value<uint16_t>(&explosion_radius)->required())(
-          "initial-blocks,k", po::value<uint16_t>(&initial_blocks)->required())(
-          "game-length,l", po::value<uint16_t>(&game_length)->required())(
-          "server-name,n", po::value<std::string>(&server_name)->required())(
-          "seed,s", po::value<uint32_t>(&seed))(
-          "size-x,x", po::value<uint16_t>(&size_x)->required())(
-          "size-y,y", po::value<uint16_t>(&size_y)->required());
+      po::options_description desc("Opcje programu");
+      desc.add_options()
+          ("bomb-timer,b",po::value<uint16_t>(&bomb_timer)->required(), "<u16>")
+          ("help,h", "produce help message")
+          ("players-count,c", po::value<uint8_t>(&players_count)->required(),
+                   "<u8>")
+          ("port,p", po::value<uint16_t>(&port)->required(), "<u16>")
+          ("turn-duration,d", po::value<uint64_t>(&turn_duration)->required(),
+                           "<u64, milisekundy>")
+          ("explosion-radius,e",po::value<uint16_t>(&explosion_radius)->required(),
+                               "<u16>")(
+          "initial-blocks,k", po::value<uint16_t>(&initial_blocks)->required(),
+                                  "<u16>")
+          ("game-length,l", po::value<uint16_t>(&game_length)->required(),
+                                   "<u16>")
+          ("server-name,n", po::value<std::string>(&server_name)->required(),
+                                       "<String>")
+          ("seed,s", po::value<uint32_t>(&seed), "<u32, parametr opcjonalny>")
+          ("size-x,x", po::value<uint16_t>(&size_x)->required(), "<u16>")
+          ("size-y,y", po::value<uint16_t>(&size_y)->required(), "<u16>");
 
       po::variables_map vm;
       po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -102,7 +108,6 @@ struct ServerConfiguration {
   }
 };
 
-
 // Reader writer lock, but there is only one "writer", so I just
 // mark if he wants to write with atomic variable
 // also - when it comes to client messages, clients(writers) can actually
@@ -131,10 +136,8 @@ struct Synchronizer {
         players_rw(),
         turns_rw(),
         wait_for_shared_turns(),
-        wait_for_shared_client_messages(
-           ),
-        wait_for_shared_players(
-            ),
+        wait_for_shared_client_messages(),
+        wait_for_shared_players(),
         want_to_write_to_players(),
         want_to_write_to_client_messages(),
         want_to_write_to_turns() {
@@ -160,7 +163,6 @@ class ServerState {
 
   Synchronizer synchro;
 
-
  public:
   void reset() {
     synchro.want_to_write_to_turns++;
@@ -183,13 +185,11 @@ class ServerState {
 
     synchro.want_to_write_to_turns--;
     synchro.want_to_write_to_players--;
-    wakeWaitingForSharedTurn();
-    wakeWaitingForSharedPlayers();
+    wake_waiting_for_shared_turn();
+    wake_waiting_for_shared_players();
   }
 
-
-
-  void tryToJoin(std::optional<PlayerId> &id, Player p) {
+  void try_to_join(std::optional<PlayerId> &id, Player p) {
     PlayerId possible_id = next_player_id++;
     if (possible_id < server_config.players_count) {
       id = possible_id;
@@ -198,7 +198,7 @@ class ServerState {
       players[possible_id] = std::move(p);
       synchro.want_to_write_to_players--;
       lk.unlock();
-      wakeWaitingForSharedPlayers();
+      wake_waiting_for_shared_players();
 
     } else {
       next_player_id--;
@@ -207,19 +207,18 @@ class ServerState {
 
   // functions that access resources that are all accessed only by one thread
   // Server thread. They need no sync cause are done synchronously by nature
-
-  [[nodiscard]] uint16_t getInitialBlocks() const {
+  [[nodiscard]] uint16_t get_initial_blocks() const {
     return server_config.initial_blocks;
   }
-  [[nodiscard]] uint64_t getTurnDuration() const {
+  [[nodiscard]] uint64_t get_turn_duration() const {
     return server_config.turn_duration;
   }
 
-  void movePlayer(PlayerId id, Position pos) {
+  void move_player(PlayerId id, Position pos) {
     positions[id] = pos;
   }
 
-  bool movePlayerInDirection(PlayerId id, uint8_t dir) {
+  bool move_player_in_direction(PlayerId id, uint8_t dir) {
     Position pos = positions[id];
     switch (dir) {
       case 0:
@@ -241,18 +240,19 @@ class ServerState {
     if (blocks.contains(pos)) {
       return false;
     } else if (pos.x >= server_config.size_x || pos.y >= server_config.size_y ||
-               pos.x < 0 || pos.y < 0) {
+               pos.x == UINT16_MAX ||
+               pos.y == UINT16_MAX) {  // these can't be negative
       return false;
     }
     positions[id] = pos;
     return true;
   }
 
-  std::map<BombId, Bomb> getBombs() {
+  std::map<BombId, Bomb> get_bombs() {
     return bombs;
   }
 
-  std::set<PlayerId> cleanUpBombs() {
+  std::set<PlayerId> clean_up_bombs() {
     for (auto k : would_die) {
       scores[k]++;
       messages_from_this_turn[k].reset();
@@ -267,13 +267,11 @@ class ServerState {
     return res;
   }
 
-
-  std::map<PlayerId, Score> getScores() {
+  std::map<PlayerId, Score> get_scores() {
     return scores;
   }
 
-
-  std::optional<std::pair<std::set<Position>, std::set<PlayerId>>> checkBomb(
+  std::optional<std::pair<std::set<Position>, std::set<PlayerId>>> check_bomb(
       BombId id) {
     bombs[id].timer--;
     Position pos = bombs[id].position;
@@ -282,9 +280,9 @@ class ServerState {
     if (bombs[id].timer == 0) {
       bombs.erase(id);
 
-      for (auto [id, player_pos] : positions) {
+      for (auto [player_id, player_pos] : positions) {
         if (player_pos == pos) {
-          would_die_local.insert(id);
+          would_die_local.insert(player_id);
         }
       }
       if (blocks.contains(pos)) {
@@ -292,8 +290,8 @@ class ServerState {
         for (auto k : would_die_local) {
           would_die.insert(k);
         }
-        for (auto pos : blocks_destroyed_local) {
-          blocks_destroyed.insert(pos);
+        for (auto block_pos : blocks_destroyed_local) {
+          blocks_destroyed.insert(block_pos);
         }
         return std::optional<std::pair<std::set<Position>, std::set<PlayerId>>>(
             {blocks_destroyed_local, would_die_local});
@@ -360,8 +358,8 @@ class ServerState {
       for (auto k : would_die_local) {
         would_die.insert(k);
       }
-      for (auto pos : blocks_destroyed_local) {
-        blocks_destroyed.insert(pos);
+      for (auto block_pos : blocks_destroyed_local) {
+        blocks_destroyed.insert(block_pos);
       }
       return std::optional<std::pair<std::set<Position>, std::set<PlayerId>>>(
           {blocks_destroyed_local, would_die_local});
@@ -369,7 +367,7 @@ class ServerState {
     return std::optional<std::pair<std::set<Position>, std::set<PlayerId>>>();
   }
 
-  bool placeBlock(Position pos) {
+  bool place_block(Position pos) {
     if (blocks.contains(pos)) {
       return false;
     }
@@ -377,139 +375,137 @@ class ServerState {
     return true;
   }
 
-  uint32_t placeBomb(Position pos) {
+  uint32_t place_bomb(Position pos) {
     bombs.insert({next_bomb_id++, {pos, server_config.bomb_timer}});
     return next_bomb_id - 1;
   }
 
-  Position getPlayerPos(PlayerId id) {
+  Position get_player_pos(PlayerId id) {
     return positions[id];
   }
 
-  const std::string &getServerName() const {
+  const std::string &get_server_name() const {
     return server_config.server_name;
   }
 
-  void startGame() {
+  void start_game() {
     game_started = true;
   }
 
-  uint16_t getBombTimer() const {
+  [[nodiscard]] uint16_t get_bomb_timer() const {
     return server_config.bomb_timer;
   }
-  uint16_t getExplosionRadius() const {
+  [[nodiscard]] uint16_t get_explosion_radius() const {
     return server_config.explosion_radius;
   }
-  uint16_t getSizeX() const {
+  [[nodiscard]] uint16_t get_size_x() const {
     return server_config.size_x;
   }
-  uint16_t getGameLength() const {
+  [[nodiscard]] uint16_t get_game_length() const {
     return server_config.game_length;
   }
-  uint16_t getSizeY() const {
+  [[nodiscard]] uint16_t get_size_y() const {
     return server_config.size_y;
   }
 
-  uint8_t getPlayersCount() const {
+  [[nodiscard]] uint8_t get_players_count() const {
     return server_config.players_count;
   };
 
-  Randomizer &getRand() {
+  Randomizer &get_rand() {
     return rand;
   }
 
   // Functions that have to do something with sync
 
-  std::shared_mutex &getClientMessagesRw() {
+  std::shared_mutex &get_client_messages_rw() {
     return synchro.client_messages_rw;
   }
 
-  std::condition_variable_any &getWaitForPlayersMessages() {
+  std::condition_variable_any &get_wait_for_players_messages() {
     return synchro.wait_for_shared_client_messages;
   }
 
   std::map<PlayerId, std::shared_ptr<ClientMessage>>
-      &getMessagesFromTurnNoSync() {
+      &get_messages_from_turn_no_sync() {
     return messages_from_this_turn;
   }
-  Player getPlayerSync(PlayerId id) {
+  Player get_player_sync(PlayerId id) {
     std::lock_guard lk(synchro.players_rw);
     return players[id];
   }
 
-  void resetMessagesFromPlayersNoSync() {
+  void reset_messages_from_players_no_sync() {
     messages_from_this_turn.clear();
   }
 
-  void addTurnSync(std::shared_ptr<Turn> t) {
+  void add_turn_sync(std::shared_ptr<Turn> t) {
     synchro.want_to_write_to_turns++;
     std::unique_lock lk(synchro.turns_rw);
     all_turns.push_back(t);
     synchro.want_to_write_to_turns--;
     lk.unlock();
-    wakeWaitingForSharedTurn();
+    wake_waiting_for_shared_turn();
   }
 
-  const std::vector<std::shared_ptr<Turn>> &getAllTurnsNoSync() const {
+  const std::vector<std::shared_ptr<Turn>> &get_all_turns_no_sync() const {
     return all_turns;
   }
 
-  std::map<PlayerId, Player> &getPlayers() {
+  std::map<PlayerId, Player> &get_players() {
     return players;
   }
 
-  const std::atomic<bool> &getGameStarted() const {
+  const std::atomic<bool> &get_game_started() const {
     return game_started;
   }
 
-  [[nodiscard]] std::shared_mutex &getPlayersMutex() {
+  [[nodiscard]] std::shared_mutex &get_players_mutex() {
     return synchro.players_rw;
   }
 
-  [[nodiscard]] std::shared_mutex &getAllTurnsMutex() {
+  [[nodiscard]] std::shared_mutex &get_all_turns_mutex() {
     return synchro.turns_rw;
   }
 
-  [[nodiscard]] std::shared_mutex &getClientMessagesMutex() {
+  [[nodiscard]] std::shared_mutex &get_client_messages_mutex() {
     return synchro.client_messages_rw;
   }
 
-  std::condition_variable_any &getWaitForTurns() {
+  std::condition_variable_any &get_wait_for_turns() {
     return synchro.wait_for_shared_turns;
   }
 
-  std::atomic<uint8_t> &getWantToWriteToTurns() {
+  std::atomic<uint8_t> &get_want_to_write_to_turns() {
     return synchro.want_to_write_to_turns;
   }
 
-  std::condition_variable_any &getWaitForPlayers() {
+  std::condition_variable_any &get_wait_for_players() {
     return synchro.wait_for_shared_players;
   }
 
-  std::atomic<uint8_t> &getWantToWriteToPlayers() {
+  std::atomic<uint8_t> &get_want_to_write_to_players() {
     return synchro.want_to_write_to_players;
   }
 
-  std::atomic<uint8_t> &getWantToWriteToClientMessages() {
+  std::atomic<uint8_t> &get_want_to_write_to_client_messages() {
     return synchro.want_to_write_to_client_messages;
   }
 
-  void wakeWaitingForSharedClientMessages() {
+  void wake_waiting_for_shared_client_messages() {
     synchro.wait_for_shared_client_messages.notify_all();
   }
 
-  void wakeWaitingForSharedTurn() {
+  void wake_waiting_for_shared_turn() {
     synchro.wait_for_shared_turns.notify_all();
   }
 
-  void wakeWaitingForSharedPlayers() {
+  void wake_waiting_for_shared_players() {
     synchro.wait_for_shared_players.notify_all();
   }
 
   explicit ServerState(ServerCommandLineOpts opts)
-      : server_config(opts),
-        rand(server_config.seed),
-        game_started(false){
+      : server_config(opts), rand(server_config.seed), game_started(false) {
   }
 };
 
