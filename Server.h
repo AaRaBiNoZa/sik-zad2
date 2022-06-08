@@ -39,7 +39,7 @@ class PlayerConnection {
     for (;;) {
       tcp_receive_stream.reset();
       std::shared_ptr<ClientMessage> rec_message =
-          ClientMessage::unserialize(tcp_receive_stream);
+          ClientMessage::deserialize(tcp_receive_stream);
 
       if (rec_message->amIJoin()) {
         continue;
@@ -66,7 +66,7 @@ class PlayerConnection {
         std::shared_ptr<ClientMessage> rec_message;
         if (!last_msg) {
           tcp_receive_stream.reset();
-          rec_message = ClientMessage::unserialize(tcp_receive_stream);
+          rec_message = ClientMessage::deserialize(tcp_receive_stream);
         } else {
           rec_message = *last_msg;
           last_msg.reset();

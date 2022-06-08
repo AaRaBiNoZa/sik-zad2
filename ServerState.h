@@ -110,7 +110,7 @@ struct ServerConfiguration {
 // index.
 // When the server tries to collect the data, then we got a problem and
 // have to get exclusive access (cause server wants to read the whole thing
-// and no one can be able to do any changes).
+// and no one can be able to do any changes)
 struct Synchronizer {
   using rw_mutex = std::shared_mutex;
 

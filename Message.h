@@ -32,9 +32,6 @@ class InvalidMessageException : public std::exception {
  */
 class Message {
  public:
-  virtual void say_hello() {
-    std::cerr << "Hello i am Message";
-  }
   virtual ~Message() = default;
 };
 
@@ -65,21 +62,17 @@ class Join : public Sendable {
   void serialize(ByteStream& os) override {
     os << getId() << name;
   }
-
-  void say_hello() override {
-    std::cerr << "Hello i am Join " << name;
-  }
 };
 
 /**
- * This is a factory that is supposed to be able to unserialize messages
+ * This is a factory that is supposed to be able to deserialize messages
  * of type InputMessage
  */
 class InputMessage : public Sendable {
  public:
   typedef std::shared_ptr<InputMessage> (*InputMessageFactory)(ByteStream&);
   static std::map<uint8_t, InputMessageFactory>& input_message_map() {
-    static auto* ans = new std::map<uint8_t, InputMessageFactory>();
+    static auto ans = new std::map<uint8_t, InputMessageFactory>();
     return *ans;
   };
 
@@ -91,10 +84,10 @@ class InputMessage : public Sendable {
   }
 
   static std::shared_ptr<InputMessage> create(ByteStream& rest) {
-    return unserialize(rest);
+    return deserialize(rest);
   }
 
-  static std::shared_ptr<InputMessage> unserialize(ByteStream& istr) {
+  static std::shared_ptr<InputMessage> deserialize(ByteStream& istr) {
     uint8_t c;
     istr >> c;
     if (!input_message_map().contains(c)) {
@@ -117,16 +110,12 @@ class PlaceBomb : public InputMessage {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit PlaceBomb([[maybe_unused]] ByteStream& rest){};
 
   void serialize(ByteStream& os) override {
     os << getId();
-  }
-
-  void say_hello() override {
-    std::cerr << "Hello i am Placebomb";
   }
 };
 
@@ -143,16 +132,12 @@ class PlaceBlock : public InputMessage {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit PlaceBlock([[maybe_unused]] ByteStream& rest){};
 
   void serialize(ByteStream& os) override {
     os << getId();
-  }
-
-  void say_hello() override {
-    std::cerr << "Hello i am Placeblock";
   }
 };
 
@@ -171,7 +156,7 @@ class Move : public InputMessage {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit Move(ByteStream& rest) : direction(0) {
     rest >> direction;
@@ -179,10 +164,6 @@ class Move : public InputMessage {
 
   void serialize(ByteStream& os) override {
     os << getId() << direction;
-  }
-
-  void say_hello() override {
-    std::cerr << "Hello i am Move dir:" << (uint16_t)direction;
   }
 };
 
@@ -230,16 +211,6 @@ class Game : public DrawMessage {
        << players << player_positions << blocks << bombs << explosions
        << scores;
   }
-
-  void say_hello() override {
-    std::cerr << "Hello i am Game: \n server_name:" << server_name
-              << "\nsize_x, size_y" << size_x << ", " << size_y
-              << "\ngame_length" << game_length << "\nturn:" << turn
-              << "\nplayers" << players << "\nplayer_positions"
-              << player_positions << "\nblocks: " << blocks
-              << "\nbombs: " << bombs << "\nexplosions" << explosions
-              << "\nscores: " << scores;
-  }
 };
 
 class Lobby : public DrawMessage {
@@ -274,16 +245,6 @@ class Lobby : public DrawMessage {
     os << (uint8_t)0 << server_name << players_count << size_x << size_y
        << game_length << explosion_radius << bomb_timer << players;
   }
-
-  void say_hello() override {
-    std::cerr << "Hello i am lobby:"
-              << " \nserver_name: " << server_name
-              << " \nplayers_count: " << players_count
-              << " \nsize_x: " << size_x << " \nsize_y: " << size_y
-              << " \ngame_length: " << game_length
-              << " \nexplosion_radius: " << explosion_radius
-              << " \nbomb_timer: " << bomb_timer << " \nplayers: " << players;
-  }
 };
 
 class ServerMessage : public Sendable {
@@ -307,7 +268,7 @@ class ServerMessage : public Sendable {
    */
   virtual bool updateClientState(ClientState& state_to_upd) = 0;
 
-  static std::shared_ptr<ServerMessage> unserialize(ByteStream& istr) {
+  static std::shared_ptr<ServerMessage> deserialize(ByteStream& istr) {
     uint8_t c;
     istr >> c;
     if (!server_message_map().contains(c)) {
@@ -340,7 +301,7 @@ class Hello : public ServerMessage {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit Hello(ByteStream& stream) {
     stream >> server_name >> players_count >> size_x >> size_y >> game_length >>
@@ -373,16 +334,6 @@ class Hello : public ServerMessage {
     os << getId() << server_name << players_count << size_x << size_y
        << game_length << explosion_radius << bomb_timer;
   }
-
-  void say_hello() override {
-    std::cerr << "Hello i am Hello: "
-              << " \nserver_name: " << server_name
-              << " \nplayers_count: " << players_count
-              << " \nsize_x: " << size_x << " \nsize_y: " << size_y
-              << " \ngame_length: " << game_length
-              << " \nexplosion_radius: " << explosion_radius
-              << " \nbomb_timer: " << bomb_timer;
-  }
 };
 
 class AcceptedPlayer : public ServerMessage {
@@ -401,7 +352,7 @@ class AcceptedPlayer : public ServerMessage {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit AcceptedPlayer(ByteStream& stream) {
     stream >> id >> player;
@@ -418,11 +369,6 @@ class AcceptedPlayer : public ServerMessage {
 
   void serialize(ByteStream& os) override {
     os << getId() << id << player;
-  }
-
-  void say_hello() override {
-    std::cerr << "Hello i am AccPlayer: "
-              << " \nid: " << id << " \nplayer: " << player;
   }
 };
 
@@ -441,7 +387,7 @@ class GameStarted : public ServerMessage {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit GameStarted(ByteStream& stream) {
     stream >> players;
@@ -468,11 +414,6 @@ class GameStarted : public ServerMessage {
   void serialize(ByteStream& os) override {
     os << getId() << players;
   }
-
-  void say_hello() override {
-    std::cerr << "Hello i am GStarted: "
-              << "\n players: " << players;
-  }
 };
 
 class Event : public ServerMessage {
@@ -492,10 +433,10 @@ class Event : public ServerMessage {
   }
 
   static std::shared_ptr<Event> create(ByteStream& rest) {
-    return unserialize(rest);
+    return deserialize(rest);
   }
 
-  static std::shared_ptr<Event> unserialize(ByteStream& istr) {
+  static std::shared_ptr<Event> deserialize(ByteStream& istr) {
     uint8_t c;
     istr >> c;
     return event_message_map()[c](istr);
@@ -518,7 +459,7 @@ class BombPlaced : public Event {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit BombPlaced(ByteStream& stream) {
     stream >> id >> position;
@@ -534,11 +475,6 @@ class BombPlaced : public Event {
 
   void serialize(ByteStream& os) override {
     os << getId() << id << position;
-  }
-
-  void say_hello() override {
-    std::cerr << "Hello i am BombPlaced: "
-              << " \nid: " << id << " \nposition: " << position;
   }
 };
 
@@ -559,7 +495,7 @@ class BombExploded : public Event {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit BombExploded(ByteStream& stream) {
     stream >> id >> robots_destroyed >> blocks_destroyed;
@@ -589,12 +525,6 @@ class BombExploded : public Event {
   void serialize(ByteStream& os) override {
     os << getId() << id << robots_destroyed << blocks_destroyed;
   }
-
-  void say_hello() override {
-    std::cerr << "Hello i am BombExploded: "
-              << " \nid: " << id << " \nrobots_destroyed: " << robots_destroyed
-              << " \nblocks_destroyed: " << blocks_destroyed;
-  }
 };
 
 class PlayerMoved : public Event {
@@ -613,7 +543,7 @@ class PlayerMoved : public Event {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit PlayerMoved(ByteStream& stream) {
     stream >> id >> position;
@@ -634,11 +564,6 @@ class PlayerMoved : public Event {
   void serialize(ByteStream& os) override {
     os << getId() << id << position;
   }
-
-  void say_hello() override {
-    std::cerr << "Hello i am PlayerMoved: "
-              << " id: " << id << " position: " << position;
-  }
 };
 
 class BlockPlaced : public Event {
@@ -656,7 +581,7 @@ class BlockPlaced : public Event {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit BlockPlaced(ByteStream& stream) {
     stream >> position;
@@ -676,11 +601,6 @@ class BlockPlaced : public Event {
   void serialize(ByteStream& os) override {
     os << getId() << position;
   }
-
-  void say_hello() override {
-    std::cerr << "Block placed:"
-              << " position: " << position;
-  }
 };
 
 class Turn : public ServerMessage {
@@ -698,7 +618,7 @@ class Turn : public ServerMessage {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit Turn(ByteStream& stream) {
     stream >> turn;
@@ -743,14 +663,6 @@ class Turn : public ServerMessage {
       event->serialize(os);
     }
   }
-
-  void say_hello() override {
-    std::cerr << "TURN\n";
-    for (const auto& k : events) {
-      k->say_hello();
-      std::cerr << "\n";
-    }
-  }
 };
 
 class GameEnded : public ServerMessage {
@@ -768,7 +680,7 @@ class GameEnded : public ServerMessage {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit GameEnded(ByteStream& stream) {
     stream >> scores;
@@ -786,10 +698,6 @@ class GameEnded : public ServerMessage {
 
   void serialize(ByteStream& os) override {
     os << getId() << scores;
-  }
-
-  void say_hello() override {
-    std::cerr << "Game ended " << scores;
   }
 };
 
@@ -818,7 +726,7 @@ class ClientMessage : public Message {
     return false;
   }
 
-  static std::shared_ptr<ClientMessage> unserialize(ByteStream& istr) {
+  static std::shared_ptr<ClientMessage> deserialize(ByteStream& istr) {
     uint8_t c;
     istr >> c;
     if (!client_message_map().contains(c)) {
@@ -845,7 +753,7 @@ class ClientJoin : public ClientMessage {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit ClientJoin(ByteStream& stream) {
     stream >> name;
@@ -864,11 +772,8 @@ class ClientJoin : public ClientMessage {
     }
     return false;
   }
-  void say_hello() override {
-    std::cerr << "ClientJoin " << name;
-  }
 
-  bool amIJoin() override {
+ bool amIJoin() override {
     return true;
   }
 };
@@ -881,7 +786,7 @@ class ClientPlaceBomb : public ClientMessage {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit ClientPlaceBomb([[maybe_unused]] ByteStream& stream){};
 
@@ -890,10 +795,6 @@ class ClientPlaceBomb : public ClientMessage {
     uint32_t bomb_id = state_to_upd.placeBomb(state_to_upd.getPlayerPos(id));
     cur_turn->addEvent(
         std::make_shared<BombPlaced>(bomb_id, state_to_upd.getPlayerPos(id)));
-  }
-
-  void say_hello() override {
-    std::cerr << "ClientPladeBomb ";
   }
 };
 
@@ -905,7 +806,7 @@ class ClientPlaceBlock : public ClientMessage {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit ClientPlaceBlock([[maybe_unused]] ByteStream& stream){};
 
@@ -915,10 +816,6 @@ class ClientPlaceBlock : public ClientMessage {
       cur_turn->addEvent(
           std::make_shared<BlockPlaced>(state_to_upd.getPlayerPos(id)));
     }
-  }
-
-  void say_hello() override {
-    std::cerr << "ClientPlaceBlock ";
   }
 };
 
@@ -933,7 +830,7 @@ class ClientMove : public ClientMessage {
 
   /**
    * Constructor that creates the object from a specified bytesream
-   * (unserializes the message on the go)
+   * (deserializes the message on the go)
    */
   explicit ClientMove(ByteStream& stream) {
     stream >> direction;
@@ -945,10 +842,6 @@ class ClientMove : public ClientMessage {
       cur_turn->addEvent(
           std::make_shared<PlayerMoved>(id, state_to_upd.getPlayerPos(id)));
     }
-  }
-
-  void say_hello() override {
-    std::cerr << "ClientMove " << (uint16_t)direction;
   }
 };
 

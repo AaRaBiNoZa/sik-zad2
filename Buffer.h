@@ -24,13 +24,13 @@ class UdpOverflowException : public BufferException {
 
 class MessageTooShortException : public BufferException {
   [[nodiscard]] const char* what() const noexcept override {
-    return "Unserialize expected more";
+    return "deserialize expected more";
   }
 };
 
 class MessageTooLongException : public BufferException {
   [[nodiscard]] const char* what() const noexcept override {
-    return "Unserialize expected more";
+    return "deserialize expected more";
   }
 };
 
@@ -53,15 +53,14 @@ class StreamBuffer {
   std::vector<uint8_t> buff;
 
  public:
-  virtual void getNBytes(uint8_t n, std::vector<uint8_t>& data) = 0;
-  virtual void endRec() = 0;  // used for cleaning after any type of read
-  virtual void reset() = 0;   // preparation for read/send
+  virtual void get_n_bytes(uint8_t n, std::vector<uint8_t>& data) = 0;
+  virtual void
+  end_receive() = 0;         // used for cleaning after any type of read/receive
+  virtual void reset() = 0;  // preparation for read/send
   virtual void send() = 0;
   virtual void get() = 0;  // for udp only - reads a full message
-  virtual void writeNBytes(uint8_t n, std::vector<uint8_t> buff) = 0;
-  virtual void rewire(std::shared_ptr<tcp::socket> new_sock) {
-    return;
-  }
+  virtual void write_n_bytes(uint8_t n, std::vector<uint8_t> buff) = 0;
+
   virtual ~StreamBuffer() = default;
 };
 
@@ -69,20 +68,19 @@ class TcpStreamBuffer : public StreamBuffer {
  private:
   std::shared_ptr<boost::asio::ip::tcp::socket> sock;
   std::vector<uint8_t> buff;
-  size_t ptr_to_act_el{};
+  size_t bytes_to_send_count{};
 
  public:
   explicit TcpStreamBuffer(std::shared_ptr<boost::asio::ip::tcp::socket> sock)
       : sock(std::move(sock)), buff(max_single_datatype_size){};
 
-  explicit TcpStreamBuffer()
-      :  buff(max_single_datatype_size){};
+  explicit TcpStreamBuffer() : buff(max_single_datatype_size){};
 
   void rewire(std::shared_ptr<tcp::socket> new_tcp_sock) override {
     sock = new_tcp_sock;
   }
 
-  void getNBytes(uint8_t n, std::vector<uint8_t>& data) override {
+  void get_n_bytes(uint8_t n, std::vector<uint8_t>& data) override {
     try {
       boost::asio::read(*sock, boost::asio::buffer(data, n));
     } catch (...) {
@@ -91,27 +89,27 @@ class TcpStreamBuffer : public StreamBuffer {
   }
 
   void send() override {
-    if (ptr_to_act_el != 0) {
-      sock->send(boost::asio::buffer(buff, ptr_to_act_el));
-      ptr_to_act_el = 0;
+    if (bytes_to_send_count != 0) {
+      sock->send(boost::asio::buffer(buff, bytes_to_send_count));
+      bytes_to_send_count = 0;
     }
   }
 
-  void endRec() override {
+  void end_receive() override {
   }
 
   void get() override {
   }
 
   void reset() override {
-    ptr_to_act_el = 0;
+    bytes_to_send_count = 0;
   }
-  void writeNBytes(uint8_t n, std::vector<uint8_t> buffer) override {
-    if (ptr_to_act_el + n > max_single_datatype_size) {
+  void write_n_bytes(uint8_t n, std::vector<uint8_t> buffer) override {
+    if (bytes_to_send_count + n > max_single_datatype_size) {
       send();
     }
-    memcpy(&buff[ptr_to_act_el], &buffer[0], n);
-    ptr_to_act_el += n;
+    memcpy(&buff[bytes_to_send_count], &buffer[0], n);
+    bytes_to_send_count += n;
   }
 
   ~TcpStreamBuffer() override = default;
@@ -122,6 +120,8 @@ class TcpStreamBuffer : public StreamBuffer {
  * ( so when I send and the receiver is not receiving, I can get the info )
  * And another for receiving, since I should be prepared to receive
  * messages from any possible address.
+ * Connecting UDP socket is handd because it takes care of ICMP
+ * unreachable messages and can detect problems with GUI.
  */
 class UdpStreamBuffer : public StreamBuffer {
  private:
@@ -159,7 +159,7 @@ class UdpStreamBuffer : public StreamBuffer {
     len = rec_sock->receive_from(boost::asio::buffer(buff), dummy);
   }
 
-  void getNBytes(uint8_t n, std::vector<uint8_t>& data) override {
+  void get_n_bytes(uint8_t n, std::vector<uint8_t>& data) override {
     if (ptr_to_act_el + n > len) {
       throw MessageTooShortException();
     }
@@ -170,13 +170,13 @@ class UdpStreamBuffer : public StreamBuffer {
     }
   }
 
-  void endRec() override {
+  void end_receive() override {
     if (len != ptr_to_act_el) {
       throw MessageTooLongException();
     }
   }
 
-  void writeNBytes(uint8_t n, std::vector<uint8_t> buffer) override {
+  void write_n_bytes(uint8_t n, std::vector<uint8_t> buffer) override {
     if (ptr_to_act_el + n > max_data_size) {
       throw UdpOverflowException();
     }

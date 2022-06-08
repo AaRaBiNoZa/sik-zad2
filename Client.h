@@ -60,11 +60,11 @@ class Client {
     try {
       udp_stream.get();
       udp_stream.reset();
-      std::shared_ptr<InputMessage> rec_message;
+      std::shared_ptr<InputMessage> received_message;
 
       /* to ignore invalid GUI messages */
       try {
-        rec_message = InputMessage::unserialize(udp_stream);
+        received_message = InputMessage::deserialize(udp_stream);
         udp_stream.endRec();
       } catch (std::exception& e) {
         udp_start_receive();
@@ -75,7 +75,7 @@ class Client {
       if (!aggregated_state.game_on) {
         Join(name).serialize(tcp_stream);
       } else {
-        rec_message->serialize(tcp_stream);
+        received_message->serialize(tcp_stream);
       }
       tcp_stream.endWrite();
       udp_start_receive();
@@ -86,6 +86,7 @@ class Client {
       exit(1);
     }
   }
+
 
   /**
    * Function that starts asynchronously listening for TCP messages.
@@ -113,7 +114,7 @@ class Client {
     try {
       tcp_stream.reset();
       std::shared_ptr<ServerMessage> rec_message =
-          ServerMessage::unserialize(tcp_stream);
+          ServerMessage::deserialize(tcp_stream);
 
       if (rec_message->updateClientState(aggregated_state)) {
         udp_stream.reset();

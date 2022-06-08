@@ -2,12 +2,13 @@
 #define SIK_ZAD3_BYTESTREAM_H
 
 #include <netinet/in.h>
+
 #include <cstring>
-#include <set>
 #include <map>
+#include <memory>
+#include <set>
 #include <utility>
 #include <vector>
-#include <memory>
 
 #include "Buffer.h"
 #include "common.h"
@@ -24,20 +25,14 @@ class ByteStream {
   std::unique_ptr<StreamBuffer> buffer;
 
  public:
-
   /**
    * Since all read/write operations here are meant for single datatype,
    * we can initialize the data vector with a size of max_single_datatype_size
    * @param buff
    */
   explicit ByteStream(std::unique_ptr<StreamBuffer> buff)
-      : data(max_single_datatype_size),
-        buffer(std::move(buff)){};
+      : data(max_single_datatype_size), buffer(std::move(buff)){};
 
-
-  void rewire(std::shared_ptr<tcp::socket> new_tcp_sock) {
-    buffer->rewire(std::move(new_tcp_sock));
-  }
   /**
    * used to prepare the underlying buffer to read/write
    */
@@ -59,7 +54,7 @@ class ByteStream {
    * (in this case it's a socket).
    */
   void endRec() {
-    buffer->endRec();
+    buffer->end_receive();
   }
 
   /**
@@ -76,11 +71,12 @@ class ByteStream {
    */
   ByteStream& operator<<(uint8_t x) {
     data[0] = x;
-    buffer->writeNBytes(sizeof(x), data);
+    buffer->write_n_bytes(sizeof(x), data);
     return *this;
   }
+
   ByteStream& operator>>(uint8_t& x) {
-    buffer->getNBytes(sizeof(x), data);
+    buffer->get_n_bytes(sizeof(x), data);
     x = data[0];
     return *this;
   }
@@ -88,11 +84,12 @@ class ByteStream {
   ByteStream& operator<<(uint16_t x) {
     x = htons(x);
     std::memcpy(&data[0], &x, sizeof(x));
-    buffer->writeNBytes(sizeof(x), data);
+    buffer->write_n_bytes(sizeof(x), data);
     return *this;
   }
+
   ByteStream& operator>>(uint16_t& x) {
-    buffer->getNBytes(sizeof(x), data);
+    buffer->get_n_bytes(sizeof(x), data);
     std::memcpy(&x, &data[0], sizeof(x));
     x = ntohs(x);
     return *this;
@@ -101,11 +98,12 @@ class ByteStream {
   ByteStream& operator<<(uint64_t x) {
     x = htobe64(x);
     std::memcpy(&data[0], &x, sizeof(x));
-    buffer->writeNBytes(sizeof(x), data);
+    buffer->write_n_bytes(sizeof(x), data);
     return *this;
   }
+
   ByteStream& operator>>(uint64_t& x) {
-    buffer->getNBytes(sizeof(x), data);
+    buffer->get_n_bytes(sizeof(x), data);
     std::memcpy(&x, &data[0], sizeof(x));
     x = be64toh(x);
     return *this;
@@ -114,40 +112,43 @@ class ByteStream {
   ByteStream& operator<<(uint32_t x) {
     x = htonl(x);
     std::memcpy(&data[0], &x, sizeof(x));
-    buffer->writeNBytes(sizeof(x), data);
+    buffer->write_n_bytes(sizeof(x), data);
     return *this;
   }
+
   ByteStream& operator>>(uint32_t& x) {
-    buffer->getNBytes(sizeof(x), data);
+    buffer->get_n_bytes(sizeof(x), data);
     std::memcpy(&x, &data[0], sizeof(x));
     x = ntohl(x);
     return *this;
   }
 
   ByteStream& operator>>(char& x) {
-    buffer->getNBytes(sizeof(x), data);
-    x = (char) data[0];
+    buffer->get_n_bytes(sizeof(x), data);
+    x = (char)data[0];
     return *this;
   }
   ByteStream& operator<<(char x) {
-    data[0] = (uint8_t) x;
-    buffer->writeNBytes(sizeof(x), data);
+    data[0] = (uint8_t)x;
+    buffer->write_n_bytes(sizeof(x), data);
 
     return *this;
   }
+
   ByteStream& operator>>(std::string& s) {
     uint8_t length;
     *this >> length;
     s.resize(length);
-    buffer->getNBytes(length, data);
+    buffer->get_n_bytes(length, data);
     std::memcpy(s.data(), &data[0], s.size());
     return *this;
   }
+
   ByteStream& operator<<(std::string s) {
-    auto length = (uint8_t) s.size();
+    auto length = (uint8_t)s.size();
     *this << length;
     std::memcpy(&data[0], s.data(), length);
-    buffer->writeNBytes(length, data);
+    buffer->write_n_bytes(length, data);
     return *this;
   }
 
@@ -161,9 +162,10 @@ class ByteStream {
     }
     return *this;
   }
+
   template <typename T>
   ByteStream& operator<<(std::vector<T> x) {
-    auto len = (uint32_t) x.size();
+    auto len = (uint32_t)x.size();
     *this << len;
     for (size_t i = 0; i < len; ++i) {
       *this << x[i];
@@ -182,11 +184,12 @@ class ByteStream {
     }
     return *this;
   }
+
   template <typename T>
   ByteStream& operator<<(std::set<T> x) {
-    auto len = (uint32_t) x.size();
+    auto len = (uint32_t)x.size();
     *this << len;
-    for (auto element: x) {
+    for (auto element : x) {
       *this << element;
     }
     return *this;
@@ -204,9 +207,10 @@ class ByteStream {
     }
     return *this;
   }
+
   template <typename T1, typename T2>
   ByteStream& operator<<(std::map<T1, T2> x) {
-    auto len = (uint32_t) x.size();
+    auto len = (uint32_t)x.size();
     *this << len;
     for (auto& it : x) {
       *this << it;
@@ -220,6 +224,7 @@ class ByteStream {
     *this >> x.second;
     return *this;
   }
+
   template <typename T1, typename T2>
   ByteStream& operator<<(std::pair<T1, T2> x) {
     *this << x.first;
