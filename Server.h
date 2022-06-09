@@ -47,10 +47,6 @@ class PlayerConnection {
       std::shared_ptr<ClientMessage> received_message =
           ClientMessage::deserialize(tcp_receive_stream);
 
-      if (received_message->am_i_join()) {
-        continue;
-      }
-
       std::shared_lock client_message_lock(
           server_state->get_client_messages_rw());
       server_state->get_wait_for_players_messages().wait(
@@ -59,6 +55,9 @@ class PlayerConnection {
           });
 
       if (my_id) {
+        if (received_message->am_i_join()) {
+          continue;
+        }
         server_state->get_messages_from_turn_no_sync()[*my_id] =
             received_message;
       } else {
@@ -77,9 +76,11 @@ class PlayerConnection {
   void start_receive() {
     try {
       for (;;) {
+        std::cerr << "Client receiving\n";
+
         std::shared_ptr<ClientMessage> rec_message;
 
-        /** last_msg is here if a player wan't notified, that the game has ended
+        /** last_msg is here if a player wasn't notified, that the game has ended
          * If the game has ended and the player (actually this thread)
          * didn't know about it, because it was blocked, it stores the message
          * it got, processes that the game has ended and only then acts
@@ -202,7 +203,6 @@ class Connector {
   void connection_handler(
       std::shared_ptr<tcp::socket> sock,
       [[maybe_unused]] const boost::system::error_code& error) {
-    std::cerr << "Got a new connection lulz \n";
     std::shared_ptr<PlayerConnection> new_connection =
         std::make_shared<PlayerConnection>(state, game_start_barrier, sock);
 
@@ -427,6 +427,7 @@ class Server {
                              server_state->get_size_x(),
                          (uint16_t)server_state->get_rand().getNextVal() %
                              server_state->get_size_y());
+
         std::shared_ptr<PlayerMoved> new_msg =
             std::make_shared<PlayerMoved>(id, new_pos);
         server_state->move_player(id, new_pos);
