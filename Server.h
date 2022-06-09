@@ -76,8 +76,6 @@ class PlayerConnection {
   void start_receive() {
     try {
       for (;;) {
-        std::cerr << "Client receiving\n";
-
         std::shared_ptr<ClientMessage> rec_message;
 
         /** last_msg is here if a player wasn't notified, that the game has ended
