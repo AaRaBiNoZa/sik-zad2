@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-#include "utils.h"
+#include "ConnectionUtils.h"
 
 using boost::asio::ip::resolver_base;
 using boost::asio::ip::tcp;

@@ -10,8 +10,8 @@
 
 #include "ByteStream.h"
 #include "ClientState.h"
+#include "MessageUtils.h"
 #include "ServerState.h"
-#include "utils.h"
 
 /**
  * This is a huge file defining all possible interfaces and

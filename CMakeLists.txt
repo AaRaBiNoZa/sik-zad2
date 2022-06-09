@@ -17,11 +17,12 @@ set(Boost_USE_STATIC_RUNTIME OFF)
 
 find_package(Boost 1.74.0 COMPONENTS program_options)
 
-if(Boost_FOUND)
+if (Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
     add_executable(robots-client client.cpp Client.h Message.h
-            ByteStream.h ClientState.h Buffer.h utils.h )
-    add_executable(robots-server server.cpp Server.h ByteStream.h  Buffer.h ServerState.h Message.h)
+            ByteStream.h ClientState.h Buffer.h MessageUtils.h ConnectionUtils.h)
+    add_executable(robots-server server.cpp Server.h ByteStream.h Buffer.h
+            ServerState.h Message.h MessageUtils.h ConnectionUtils.h)
     target_link_libraries(robots-client ${Boost_LIBRARIES})
     target_link_libraries(robots-server ${Boost_LIBRARIES})
-endif()
+endif ()

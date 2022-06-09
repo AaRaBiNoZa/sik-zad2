@@ -9,7 +9,7 @@
 #include "ByteStream.h"
 #include "ClientState.h"
 #include "Message.h"
-#include "utils.h"
+#include "ConnectionUtils.h"
 
 using boost::asio::ip::resolver_base;
 using boost::asio::ip::tcp;

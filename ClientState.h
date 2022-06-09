@@ -7,7 +7,7 @@
 #include <set>
 #include <string>
 
-#include "utils.h"
+#include "MessageUtils.h"
 
 namespace po = boost::program_options;
 

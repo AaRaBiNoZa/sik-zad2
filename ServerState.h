@@ -9,8 +9,8 @@
 #include <string>
 #include <utility>
 
+#include "MessageUtils.h"
 #include "Randomizer.h"
-#include "utils.h"
 
 class Turn;
 class ClientMessage;

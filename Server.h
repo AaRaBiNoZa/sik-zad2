@@ -9,9 +9,10 @@
 #include <utility>
 #include <vector>
 
+#include "ConnectionUtils.h"
 #include "Message.h"
+#include "MessageUtils.h"
 #include "ServerState.h"
-#include "utils.h"
 
 using boost::asio::ip::resolver_base;
 using boost::asio::ip::tcp;
@@ -39,7 +40,6 @@ class PlayerConnection {
   std::mutex send_mutex;
 
  private:
-
   void start_playing() {
     game_start_barrier->arrive_and_wait();
     for (;;) {
@@ -53,12 +53,14 @@ class PlayerConnection {
 
       std::shared_lock client_message_lock(
           server_state->get_client_messages_rw());
-      server_state->get_wait_for_players_messages().wait(client_message_lock, [&] {
-        return server_state->get_want_to_write_to_client_messages() == 0;
-      });
+      server_state->get_wait_for_players_messages().wait(
+          client_message_lock, [&] {
+            return server_state->get_want_to_write_to_client_messages() == 0;
+          });
 
       if (my_id) {
-        server_state->get_messages_from_turn_no_sync()[*my_id] = received_message;
+        server_state->get_messages_from_turn_no_sync()[*my_id] =
+            received_message;
       } else {
         last_msg.emplace(received_message);
         return;
@@ -122,7 +124,7 @@ class PlayerConnection {
       std::shared_lock players_lock(
           server_state
               ->get_players_mutex());  // noone is allowed to join, because we
-                                     // want to send initial/broadcast message
+                                       // want to send initial/broadcast message
       server_state->get_wait_for_players().wait(players_lock, [&] {
         return server_state->get_want_to_write_to_players() == 0;
       });
@@ -279,6 +281,10 @@ class Connector {
         };
 };
 
+/*
+ * This class first waits for an appropriate number of players to join.
+ * Then it initializes the game state and sends appropriate messages.
+ */
 class Server {
  private:
   std::shared_ptr<ServerState> server_state;
@@ -287,7 +293,11 @@ class Server {
   std::jthread connector_thread;
   boost::asio::steady_timer turn_timer;
 
- public:
+  /*
+   * Here the waiting is done, after each player joins, this thread
+   * broadcasts an appropriate message.
+   * After enough players join, init_game() is called.
+   */
   void start_lobby() {
     for (uint8_t i = 0; i < server_state->get_players_count(); ++i) {
       game_start_barrier->arrive_and_wait();
@@ -310,29 +320,39 @@ class Server {
     init_game();
   }
 
-  // players don't interfere with server state directly during the game, all
-  // interpretations of their messages is done here, in this class
+  /* players don't interfere with server state directly during the game, all
+   * interpretations of their messages is done here, in this class
+   * Here, initial players' and blocks' positions are set and
+   * turn 0 is being prepared.
+   */
   void init_game() {
-    std::cerr << "GAME STARTED";
     std::shared_ptr<Turn> init_turn = std::make_shared<Turn>(
         0);  // preparations for the game, initial positions etc
 
+    /* Loop for randomly choosing players' initial positions
+     * After we choose the posiion, we create a message out of it,
+     * make changes in server_state and add this message to
+     * turn0 messages
+     */
     for (auto [playerId, player] : server_state->get_players()) {
-      Position init_pos(
-          server_state->get_rand().getNextVal() % server_state->get_size_x(),
-          server_state->get_rand().getNextVal() % server_state->get_size_y());
+      Position init_pos((uint16_t)server_state->get_rand().getNextVal() %
+                            server_state->get_size_x(),
+                        (uint16_t)server_state->get_rand().getNextVal() %
+                            server_state->get_size_y());
       std::shared_ptr<PlayerMoved> msg =
           std::make_shared<PlayerMoved>(playerId, init_pos);
       server_state->move_player(playerId, init_pos);
       init_turn->addEvent(msg);
     }
 
+    /* A loop doing the same as above, but with blocks' initial poisitions. */
     for (uint16_t i = 0; i < server_state->get_initial_blocks(); ++i) {
       Position init_pos;
       do {
-        init_pos = Position (
-            server_state->get_rand().getNextVal() % server_state->get_size_x(),
-            server_state->get_rand().getNextVal() % server_state->get_size_y());
+        init_pos = Position((uint16_t)server_state->get_rand().getNextVal() %
+                                server_state->get_size_x(),
+                            (uint16_t)server_state->get_rand().getNextVal() %
+                                server_state->get_size_y());
       } while (!server_state->place_block(init_pos));
 
       std::shared_ptr<BlockPlaced> msg =
@@ -359,7 +379,7 @@ class Server {
   void end_game() {
     server_state
         ->get_want_to_write_to_client_messages()++;  // blocking all that got
-                                                       // any messages
+                                                     // any messages
     std::unique_lock lk(server_state->get_client_messages_mutex());
     server_state->reset_messages_from_players_no_sync();
     connector->finish();
@@ -372,12 +392,18 @@ class Server {
     connector->broadcast_message(new_msg);
   }
 
+  /* Here is the course of one round. First we block incoming messages from
+   * overwriting what was collected during the last round.
+   * Then it is calculated which bombs have exploded, which players have died
+   * and which blocks were destroyed and after all of that, messags from
+   * players that survived are being processed.
+   */
   void do_one_turn(uint16_t turn_num) {
     server_state->get_want_to_write_to_client_messages()++;
     std::unique_lock lk(
         server_state
             ->get_client_messages_mutex());  // blocking saving recent messages,
-                                          // since the turn has ended
+                                             // since the turn has ended
     std::shared_ptr<Turn> cur_turn = std::make_shared<Turn>(turn_num);
 
     for (auto [id, bomb] : server_state->get_bombs()) {
@@ -396,11 +422,11 @@ class Server {
       if (!dead_players.contains(id) && msg) {
         msg->update_server_state(*server_state, id,
                                  cur_turn);  // and id, //and turn
-        std::cerr << "\n\nREADING NOW\n\n ";
       } else if (dead_players.contains(id)) {
-        Position new_pos(
-            server_state->get_rand().getNextVal() % server_state->get_size_x(),
-            server_state->get_rand().getNextVal() % server_state->get_size_y());
+        Position new_pos((uint16_t)server_state->get_rand().getNextVal() %
+                             server_state->get_size_x(),
+                         (uint16_t)server_state->get_rand().getNextVal() %
+                             server_state->get_size_y());
         std::shared_ptr<PlayerMoved> new_msg =
             std::make_shared<PlayerMoved>(id, new_pos);
         server_state->move_player(id, new_pos);
@@ -414,8 +440,7 @@ class Server {
     server_state->wake_waiting_for_shared_client_messages();
   }
 
-  //  void do_one_turn
-
+ public:
   Server(boost::asio::io_context& io_context, ServerCommandLineOpts opts)
       : server_state(std::make_shared<ServerState>(opts)),
         game_start_barrier(std::make_shared<std::barrier<>>(2)),
