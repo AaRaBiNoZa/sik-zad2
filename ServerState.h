@@ -31,13 +31,29 @@ struct ServerCommandLineOpts {
   uint16_t size_x{};
   uint16_t size_y{};
 
+  bool validate() {
+    if (players_count == 0) {
+      std::cerr << "Players count cannot be equal to 0";
+      return false;
+    }
+    if (initial_blocks > size_x * size_y) {
+      std::cerr << "There cannot be more initial blocks than size_x * size_y";
+      return false;
+    }
+
+    return true;
+  }
+
   bool parse_command_line(int argc, char *argv[]) {
+    // needed, because uint8 is read like a char
+    uint16_t placeholder_for_u8;
+
     try {
       po::options_description desc("Opcje programu");
       desc.add_options()
           ("bomb-timer,b",po::value<uint16_t>(&bomb_timer)->required(), "<u16>")
           ("help,h", "produce help message")
-          ("players-count,c", po::value<uint8_t>(&players_count)->required(),
+          ("players-count,c", po::value<uint16_t>(&placeholder_for_u8)->required(),
                    "<u8>")
           ("port,p", po::value<uint16_t>(&port)->required(), "<u16>")
           ("turn-duration,d", po::value<uint64_t>(&turn_duration)->required(),
@@ -76,6 +92,12 @@ struct ServerCommandLineOpts {
                 << "\n";
       return false;
     }
+    if (placeholder_for_u8 > UINT8_MAX) {
+      std::cerr << "Too large players-count";
+      return false;
+    }
+
+    players_count = (uint8_t) placeholder_for_u8;
     return true;
   }
 };
