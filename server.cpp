@@ -1,8 +1,9 @@
+#include "Server.h"
+
 #include <iostream>
 #include <string>
 
 #include "ByteStream.h"
-#include "Server.h"
 #include "ServerState.h"
 
 namespace po = boost::program_options;
@@ -10,7 +11,7 @@ namespace po = boost::program_options;
 int main(int argc, char *argv[]) {
   ServerCommandLineOpts opts;
 
-  if (!opts.parse_command_line(argc, argv) || !opts.validate())  {
+  if (!opts.parse_command_line(argc, argv) || !opts.validate()) {
     return 1;
   }
   register_all_server();
