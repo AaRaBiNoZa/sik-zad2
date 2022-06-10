@@ -333,10 +333,8 @@ class Server {
      * turn0 messages
      */
     for (auto [playerId, player] : server_state->get_players()) {
-      Position init_pos((uint16_t)server_state->get_rand().getNextVal() %
-                            server_state->get_size_x(),
-                        (uint16_t)server_state->get_rand().getNextVal() %
-                            server_state->get_size_y());
+      Position init_pos = server_state->get_rand().get_next_position(server_state->get_size_x(), server_state->get_size_y());
+
       std::shared_ptr<PlayerMoved> msg =
           std::make_shared<PlayerMoved>(playerId, init_pos);
       server_state->move_player(playerId, init_pos);
@@ -345,19 +343,16 @@ class Server {
 
     /* A loop doing the same as above, but with blocks' initial poisitions. */
     for (uint16_t i = 0; i < server_state->get_initial_blocks(); ++i) {
-      Position init_pos;
-      do {
-        init_pos = Position((uint16_t)server_state->get_rand().getNextVal() %
-                                server_state->get_size_x(),
-                            (uint16_t)server_state->get_rand().getNextVal() %
-                                server_state->get_size_y());
-      } while (!server_state->place_block(init_pos));
+      Position init_pos = server_state->get_rand().get_next_position(server_state->get_size_x(), server_state->get_size_y());
 
-      std::shared_ptr<BlockPlaced> msg =
-          std::make_shared<BlockPlaced>(init_pos);
+      if (server_state->place_block(init_pos)) {
+        std::shared_ptr<BlockPlaced> msg =
+        std::make_shared<BlockPlaced>(init_pos);
 
-      init_turn->addEvent(msg);
+        init_turn->addEvent(msg);
+      }
     }
+
     connector->broadcast_message(*init_turn);
     server_state->add_turn_sync(init_turn);
 
@@ -421,10 +416,8 @@ class Server {
         msg->update_server_state(*server_state, id,
                                  cur_turn);  // and id, //and turn
       } else if (dead_players.contains(id)) {
-        Position new_pos((uint16_t)server_state->get_rand().getNextVal() %
-                             server_state->get_size_x(),
-                         (uint16_t)server_state->get_rand().getNextVal() %
-                             server_state->get_size_y());
+        Position new_pos = server_state->get_rand().get_next_position(server_state->get_size_x(), server_state->get_size_y());
+
 
         std::shared_ptr<PlayerMoved> new_msg =
             std::make_shared<PlayerMoved>(id, new_pos);
