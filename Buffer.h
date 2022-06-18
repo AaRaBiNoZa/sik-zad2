@@ -126,7 +126,6 @@ class UdpStreamBuffer : public StreamBuffer {
  private:
   static const uint16_t max_data_size = 65507;
   std::shared_ptr<boost::asio::ip::udp::socket> rec_sock;
-  boost::asio::ip::udp::socket send_sock;
   boost::asio::ip::udp::endpoint remote_endpoint;
   std::vector<uint8_t> internal_buff;
   size_t bytes_to_send_count{};
@@ -137,17 +136,13 @@ class UdpStreamBuffer : public StreamBuffer {
   explicit UdpStreamBuffer(std::shared_ptr<boost::asio::ip::udp::socket> sock,
                            const std::string& remote_address,
                            boost::asio::io_context& io_context)
-      : rec_sock(std::move(sock)),
-        send_sock(io_context, udp::endpoint(udp::v6(), 0)),
-        internal_buff(max_data_size) {
+      : rec_sock(std::move(sock)), internal_buff(max_data_size) {
     auto [remote_host, remote_port] = extract_host_and_port(remote_address);
     udp::resolver udp_resolver(io_context);
     remote_endpoint = *udp_resolver.resolve(udp::v6(), remote_host, remote_port,
                                             resolver_base::numeric_service |
                                                 resolver_base::v4_mapped |
                                                 resolver_base::all_matching);
-
-    send_sock.connect(remote_endpoint);
   };
   void reset() override {
     bytes_to_send_count = 0;
@@ -185,7 +180,8 @@ class UdpStreamBuffer : public StreamBuffer {
   }
   void send() override {
     if (bytes_to_send_count != 0) {
-      send_sock.send(boost::asio::buffer(internal_buff, bytes_to_send_count));
+      rec_sock->send_to(boost::asio::buffer(internal_buff, bytes_to_send_count),
+                        remote_endpoint);
     }
   }
 

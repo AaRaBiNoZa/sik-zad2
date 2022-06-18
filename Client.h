@@ -151,6 +151,7 @@ class Client {
             io_context, tcp::endpoint(tcp::v6(), opts.port))),
         tcp_stream(std::make_unique<TcpStreamBuffer>(tcp_server_sock)),
         name(opts.player_name) {
+
     // finding server endpoint
     auto [server_host, server_port] =
         extract_host_and_port(opts.server_address);
