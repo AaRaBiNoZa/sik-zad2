@@ -1,5 +1,5 @@
 # SIK-2 Robots
-It is a C++ project divided into two parts that simulates a server and a client of a Bomberman multiplayer game. The client uses GUI provided by the university.
+It is a C++ project divided into two parts that provides a server and a client of a Bomberman multiplayer game. The client uses GUI provided by the university.
 
 # Bombowe roboty
 ## 1. Gra Bombowe roboty
